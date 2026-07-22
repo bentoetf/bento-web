@@ -408,7 +408,7 @@ export function GuidePage() {
   }
   async function copy(text: string, key: string) { try { await navigator.clipboard.writeText(text); setCopied(key); setTimeout(() => setCopied(""), 1500); } catch {} }
   const steps: [string, React.ReactNode][] = [
-    ["1 · Get a wallet", <span key="s1">Install <a href="https://metamask.io" className="text-[#f5a623] hover:underline">MetaMask</a> (or any EVM wallet) as a browser extension or mobile app and back up your seed phrase.</span>],
+    ["1 · Get a wallet", <span key="s1">Install <a href="https://metamask.io" className="text-[#f5a623] hover:underline">MetaMask</a> (or any EVM wallet) as a browser extension or mobile app and back up your seed phrase. On mobile, open this site inside your wallet&apos;s built-in browser (MetaMask and Trust both have one) so Connect can find it.</span>],
     ["2 · Add Robinhood Chain", <span key="s2">One click below, or add manually: RPC <span className="font-mono text-zinc-200">rpc.mainnet.chain.robinhood.com</span>, chain ID <span className="font-mono text-zinc-200">4663</span>, currency ETH, explorer <span className="font-mono text-zinc-200">robinhoodchain.blockscout.com</span>.</span>],
     ["3 · Bridge ETH in", <span key="s3">Move ETH to Robinhood Chain using the official bridge or an exchange that supports withdrawals to it. Even a small amount works, mints start tiny.</span>],
     ["4 · Mint MAG7", <span key="s4">Open <Link href="/mint" className="text-[#f5a623] hover:underline">Mint</Link>, connect your wallet, enter an ETH or USDG amount, press Quote mint, then Mint. Your ETH is split across the seven underlying tokenized stocks and you receive MAG7 box tokens.</span>],
