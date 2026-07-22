@@ -313,7 +313,7 @@ function ClaimsSection({ data }: { data: ReturnType<typeof useBentoData> }) {
 
 export function BentoPage() {
   const data = useBentoData();
-  const feeCollectorBalance = useBalance({ address: contracts.feeCollector, chainId: robinhood.id, query: { enabled: data.bentoConfigured, staleTime: 0 } });
+  const feeCollectorBalance = useBalance({ address: contracts.feeCollector, chainId: robinhood.id, query: { enabled: !isZeroAddress(contracts.feeCollector), staleTime: 0 } });
   const bentoSupply = data.bentoSupplyRead.data as bigint | undefined;
   const burned = (() => { if (!data.bentoConfigured || bentoSupply === undefined) return data.bentoConfigured ? "—" : SOON; const initial = 1_000_000_000n * 10n ** 18n; return `${formatBig(bentoSupply < initial ? initial - bentoSupply : 0n, 18, 2)} BENTO`; })();
   const feesCollected = data.bentoConfigured && feeCollectorBalance.data ? `${formatBig(feeCollectorBalance.data.value, 18, 5)} ETH` : data.bentoConfigured ? "—" : SOON;

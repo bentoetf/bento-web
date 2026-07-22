@@ -259,5 +259,5 @@ export function hasDeployAddresses() {
 }
 
 export function hasBentoAddresses() {
-  return contracts.bentoToken !== PLACEHOLDER_ADDRESS && contracts.feeCollector !== PLACEHOLDER_ADDRESS;
+  return contracts.bentoToken !== PLACEHOLDER_ADDRESS;
 }
