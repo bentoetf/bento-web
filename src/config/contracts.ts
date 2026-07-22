@@ -19,7 +19,7 @@ export const contracts = {
   mag7BoxToken: (process.env.NEXT_PUBLIC_MAG7_BOX_TOKEN_ADDRESS || PLACEHOLDER_ADDRESS) as Address,
   mag7Vault: (process.env.NEXT_PUBLIC_MAG7_VAULT_ADDRESS || PLACEHOLDER_ADDRESS) as Address,
   v4Adapter: (process.env.NEXT_PUBLIC_V4_ADAPTER_ADDRESS || PLACEHOLDER_ADDRESS) as Address,
-  bentoToken: (process.env.NEXT_PUBLIC_BENTO_TOKEN_ADDRESS || PLACEHOLDER_ADDRESS) as Address,
+  bentoToken: (process.env.NEXT_PUBLIC_BENTO_TOKEN_ADDRESS || "0x73e2bb7793ee0cf1375ef7892d2ca228a29a7d5c") as Address,
   feeCollector: (process.env.NEXT_PUBLIC_FEE_COLLECTOR_ADDRESS || PLACEHOLDER_ADDRESS) as Address,
   usdgZapper: (process.env.NEXT_PUBLIC_USDG_ZAPPER_ADDRESS || PLACEHOLDER_ADDRESS) as Address,
   boxId: 1n,
