@@ -233,13 +233,17 @@ export function PortfolioPage() {
   const ethFeedDecimals = data.ethFeedReads.data?.[1]?.result as number | undefined;
   const ethStale = data.deployed && isFeedStale(ethRound?.[3]);
   const boxBalance = data.boxBalanceRead.data as bigint | undefined;
+  const boxSupply = data.totalSupplyRead.data as bigint | undefined;
   const stockRows = MAG7_COMPONENTS.map((component, i) => {
-    const balance = data.stockBalanceReads.data?.[i]?.result as bigint | undefined;
+    const walletBalance = (data.stockBalanceReads.data?.[i]?.result as bigint | undefined) ?? 0n;
+    const vaultShare = boxBalance && boxSupply && boxSupply > 0n ? (((data.backingData?.[2]?.[i] ?? 0n) * boxBalance) / boxSupply) : 0n;
+    const balance = walletBalance + vaultShare;
     const feed = data.feedInfo[i];
     const stale = data.deployed && isFeedStale(feed?.updatedAt);
     return {
       symbol: component.symbol,
       name: component.name,
+      kind: vaultShare > 0n && walletBalance === 0n ? "via MAG7 box" : "underlying stock",
       amount: data.deployed ? formatBig(balance) : SOON,
       usd: stale ? "market closed" : data.deployed ? formatUsd1e18(usdFromBalance(balance, feed?.answer, feed?.decimals)) : SOON,
     };
@@ -286,7 +290,7 @@ export function PortfolioPage() {
             <tbody>
               <HoldingRow name="ETH" kind="native" amount={data.ethBalanceRead.data ? formatBig(data.ethBalanceRead.data.value, 18, 6) : data.deployed ? "—" : SOON} usd={ethUsd} />
               <HoldingRow name="MAG7 Box" kind="box token" amount={data.deployed ? formatBig(boxBalance) : SOON} usd={data.deployed ? formatUsd1e18(usdFromNav(boxBalance, data.navRead.data as bigint | undefined)) : SOON} />
-              {stockRows.map((row) => <HoldingRow key={row.symbol} name={`${row.symbol} · ${row.name}`} kind="underlying stock" amount={row.amount} usd={row.usd} />)}
+              {stockRows.map((row) => <HoldingRow key={row.symbol} name={`${row.symbol} · ${row.name}`} kind={row.kind} amount={row.amount} usd={row.usd} />)}
             </tbody>
           </table>
         </div>
