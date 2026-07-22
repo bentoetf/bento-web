@@ -121,7 +121,44 @@ function useBentoData() {
   }
 
   async function submitMint() { try { if (!address) throw new Error("Connect wallet first."); if (!mintQuote.boxOut || !mintQuote.minBoxOut || !mintQuote.componentMins) await quoteMint(); const value = parseEther(ethIn || "0"); const recipient = resolveRecipient(giftRecipient, address); const hash = await writeContractAsync({ address: contracts.boxEngine, abi: boxEngineAbi, functionName: "mint", args: [boxId, mintQuote.minBoxOut || 0n, recipient, mintQuote.componentMins || []], value, chainId: robinhood.id }); setTxMessage(`Mint sent: ${hash}`); } catch (error) { setTxMessage(friendlyError(error)); } }
-  async function submitMintUSDG() { try { if (!address) throw new Error("Connect wallet first."); if (!publicClient) throw new Error("Wallet client unavailable."); if (!hasZapperAddress()) throw new Error("USDG zapper not deployed yet."); const usdgAmount = parseUnits(usdgIn || "0", USDG_DECIMALS); if (usdgAmount <= 0n) throw new Error("Enter a USDG amount."); const approveHash = await writeContractAsync({ address: USDG_ADDRESS, abi: erc20Abi, functionName: "approve", args: [contracts.usdgZapper, usdgAmount], chainId: robinhood.id }); await publicClient.waitForTransactionReceipt({ hash: approveHash }); const recipient = resolveRecipient(giftRecipient, address); const hash = await writeContractAsync({ address: contracts.usdgZapper, abi: zapperAbi, functionName: "mintWithUSDG", args: [boxId, usdgAmount, 0n, mintQuote.minBoxOut || 0n, mintQuote.componentMins || [], recipient], chainId: robinhood.id }); setTxMessage(`USDG mint sent: ${hash}`); } catch (error) { setTxMessage(friendlyError(error)); } }
+  async function submitMintUSDG() {
+    try {
+      if (!address) throw new Error("Connect wallet first.");
+      if (!publicClient) throw new Error("Wallet client unavailable.");
+      if (!hasZapperAddress()) throw new Error("USDG zapper not deployed yet.");
+      const usdgAmount = parseUnits(usdgIn || "0", USDG_DECIMALS);
+      if (usdgAmount <= 0n) throw new Error("Enter a USDG amount.");
+      // Derive mins for the USDG path independently of the ETH-path quote state.
+      // Estimate expected ETH out from the ETH/USD feed (USDG ~ $1), then simulate the mint with that ETH.
+      const ethRound = ethFeedReads.data?.[0]?.result as readonly [bigint, bigint, bigint, bigint, bigint] | undefined;
+      const ethFeedDec = ethFeedReads.data?.[1]?.result as number | undefined;
+      let minEthOut = 0n;
+      let minBoxOut = 0n;
+      let componentMins: bigint[] = [];
+      if (ethRound && ethRound[1] > 0n && ethFeedDec !== undefined) {
+        const expectedEth = (usdgAmount * 10n ** 18n * 10n ** BigInt(ethFeedDec)) / (10n ** BigInt(USDG_DECIMALS) * ethRound[1]);
+        minEthOut = applySlippage(expectedEth, slippage);
+        const simData = encodeFunctionData({ abi: boxEngineAbi, functionName: "simulateMint", args: [boxId, minEthOut] });
+        const simResult = await publicClient.call({ to: contracts.boxEngine, data: simData, account: address });
+        const boxOut = decodeFunctionResult({ abi: boxEngineAbi, functionName: "simulateMint", data: simResult.data ?? "0x" }) as unknown as bigint;
+        minBoxOut = applySlippage(boxOut, slippage);
+        const net = minEthOut - (minEthOut * mintFeeBps) / BPS;
+        let remaining = net;
+        for (let i = 0; i < MAG7_COMPONENTS.length; i++) {
+          const part = i === MAG7_COMPONENTS.length - 1 ? remaining : (net * MAG7_COMPONENTS[i].weightBps) / BPS;
+          remaining -= part;
+          const data = encodeFunctionData({ abi: adapterAbi, functionName: "quoteETHToToken", args: [MAG7_COMPONENTS[i].token, part] });
+          const result = await publicClient.call({ to: contracts.v4Adapter, data, account: address });
+          componentMins.push(applySlippage(decodeFunctionResult({ abi: adapterAbi, functionName: "quoteETHToToken", data: result.data ?? "0x" }) as unknown as bigint, slippage));
+        }
+      }
+      const approveHash = await writeContractAsync({ address: USDG_ADDRESS, abi: erc20Abi, functionName: "approve", args: [contracts.usdgZapper, usdgAmount], chainId: robinhood.id });
+      await publicClient.waitForTransactionReceipt({ hash: approveHash });
+      const recipient = resolveRecipient(giftRecipient, address);
+      const hash = await writeContractAsync({ address: contracts.usdgZapper, abi: zapperAbi, functionName: "mintWithUSDG", args: [boxId, usdgAmount, minEthOut, minBoxOut, componentMins, recipient], chainId: robinhood.id });
+      setTxMessage(`USDG mint sent: ${hash}`);
+    } catch (error) { setTxMessage(friendlyError(error)); }
+  }
   async function redeemForEth() { try { if (!address) throw new Error("Connect wallet first."); if (!publicClient) throw new Error("Wallet client unavailable."); const boxIn = parseEther(redeemAmount || "0"); const approveHash = await writeContractAsync({ address: contracts.mag7BoxToken, abi: erc20Abi, functionName: "approve", args: [contracts.boxEngine, boxIn], chainId: robinhood.id }); await publicClient.waitForTransactionReceipt({ hash: approveHash }); const hash = await writeContractAsync({ address: contracts.boxEngine, abi: boxEngineAbi, functionName: "redeemForETH", args: [boxId, boxIn, redeemQuote.minEthOut || 0n, redeemQuote.componentMins || [], address], chainId: robinhood.id }); setTxMessage(`Redeem for ETH sent: ${hash}`); } catch (error) { setTxMessage(friendlyError(error)); } }
   async function redeemForStocks() { try { if (!address) throw new Error("Connect wallet first."); if (!publicClient) throw new Error("Wallet client unavailable."); const boxIn = parseEther(redeemAmount || "0"); const approveHash = await writeContractAsync({ address: contracts.mag7BoxToken, abi: erc20Abi, functionName: "approve", args: [contracts.boxEngine, boxIn], chainId: robinhood.id }); await publicClient.waitForTransactionReceipt({ hash: approveHash }); const hash = await writeContractAsync({ address: contracts.boxEngine, abi: boxEngineAbi, functionName: "redeemForStocks", args: [boxId, boxIn, address], chainId: robinhood.id }); setTxMessage(`Redeem for stocks sent: ${hash}`); } catch (error) { setTxMessage(friendlyError(error)); } }
   async function claim(token: Address) { try { if (!address) throw new Error("Connect wallet first."); const hash = await writeContractAsync({ address: contracts.boxEngine, abi: boxEngineAbi, functionName: "claimPending", args: [boxId, token, address], chainId: robinhood.id }); setTxMessage(`Claim sent: ${hash}`); } catch (error) { setTxMessage(friendlyError(error)); } }
