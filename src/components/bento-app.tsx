@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { AlertTriangle, ArrowDownRight, ArrowUpRight, Check, ChevronDown, ExternalLink, Info } from "lucide-react";
+import { AlertTriangle, ArrowDownRight, ArrowUpRight, Check, ChevronDown, Copy, ExternalLink, Info } from "lucide-react";
 import { useMemo, useState } from "react";
 import { decodeFunctionResult, encodeFunctionData, formatUnits, parseEther, parseUnits, type Address } from "viem";
 import { useAccount, useBalance, useConnect, useDisconnect, usePublicClient, useReadContract, useReadContracts, useWriteContract } from "wagmi";
@@ -146,11 +146,18 @@ function WalletPanel() {
   return <div className="relative"><button onClick={() => setOpen((v) => !v)} className="rounded-full border border-[#f5a623] px-6 py-2 text-sm font-semibold text-[#f5a623] hover:bg-[#f5a623]/10">Connect</button>{open ? <div className="absolute right-0 top-12 z-50 w-64 rounded-2xl border border-[#f5a623]/25 bg-[#10100e] p-3"><p className="mb-3 font-mono text-[11px] uppercase tracking-[0.22em] text-[#f5a623]/70">Choose wallet</p><div className="space-y-2">{connectors.map((connector) => <button key={connector.uid} disabled={isPending} onClick={() => { connect({ connector, chainId: robinhood.id }); setOpen(false); }} className="w-full rounded-xl border border-[#f5a623]/15 px-4 py-3 text-left text-sm text-zinc-100 hover:border-[#f5a623]/45 hover:bg-[#f5a623]/10 disabled:opacity-50">{connector.name}</button>)}</div></div> : null}</div>;
 }
 
+function CaBadge() {
+  const [copied, setCopied] = useState(false);
+  if (contracts.bentoToken === PLACEHOLDER_ADDRESS) return null;
+  const ca = contracts.bentoToken;
+  return <button onClick={async () => { try { await navigator.clipboard.writeText(ca); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {} }} title="Copy $BENTO contract address" className="hidden items-center gap-2 rounded-full border border-[#f5a623]/25 bg-[#f5a623]/5 px-3 py-1.5 font-mono text-[11px] text-zinc-400 transition hover:border-[#f5a623]/50 hover:text-[#f5a623] md:inline-flex"><span className="font-semibold text-[#f5a623]">$BENTO</span><span>{short(ca)}</span>{copied ? <Check className="h-3 w-3 text-[#22c55e]" /> : <Copy className="h-3 w-3" />}</button>;
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [showBanner, setShowBanner] = useState(true);
   const deployed = hasDeployAddresses();
-  return <div className="min-h-screen bg-[#050505]"><header className="sticky top-0 z-30 border-b border-[#f5a623]/10 bg-[#050505]/95 backdrop-blur"><div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8"><div className="grid items-center gap-4 lg:grid-cols-[1fr_auto_1fr]"><Link href="/" className="flex items-center gap-3 justify-self-start"><BentoLogo /><span className="text-sm font-semibold tracking-tight text-zinc-100">Bento</span></Link><nav className="flex items-center justify-center gap-8 overflow-x-auto text-sm text-zinc-400">{navItems.map((item) => { const active = pathname === item.href || (item.href === "/" && pathname === "/reserves"); return <Link key={item.href} href={item.href} className={`whitespace-nowrap transition hover:text-[#f5a623] ${active ? "text-[#f5a623]" : ""}`}>{item.label}</Link>; })}</nav><div className="justify-self-end"><WalletPanel /></div></div>{!deployed && showBanner ? <div className="mt-3 flex items-center justify-between gap-3 rounded-full border border-[#f5a623]/15 bg-[#f5a623]/5 px-4 py-2 text-xs text-zinc-400"><p><span className="font-mono uppercase tracking-[0.18em] text-[#f5a623]/80">Contracts not yet deployed</span> · launching-soon state, no zero-address reads.</p><button onClick={() => setShowBanner(false)} className="text-zinc-500 hover:text-[#f5a623]">Dismiss</button></div> : null}</div></header><main className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">{children}</main><Footer /></div>;
+  return <div className="min-h-screen bg-[#050505]"><header className="sticky top-0 z-30 border-b border-[#f5a623]/10 bg-[#050505]/95 backdrop-blur"><div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8"><div className="grid items-center gap-4 lg:grid-cols-[1fr_auto_1fr]"><Link href="/" className="flex items-center gap-3 justify-self-start"><BentoLogo /><span className="text-sm font-semibold tracking-tight text-zinc-100">Bento</span></Link><nav className="flex items-center justify-center gap-8 overflow-x-auto text-sm text-zinc-400">{navItems.map((item) => { const active = pathname === item.href || (item.href === "/" && pathname === "/reserves"); return <Link key={item.href} href={item.href} className={`whitespace-nowrap transition hover:text-[#f5a623] ${active ? "text-[#f5a623]" : ""}`}>{item.label}</Link>; })}</nav><div className="flex items-center gap-3 justify-self-end"><CaBadge /><WalletPanel /></div></div>{!deployed && showBanner ? <div className="mt-3 flex items-center justify-between gap-3 rounded-full border border-[#f5a623]/15 bg-[#f5a623]/5 px-4 py-2 text-xs text-zinc-400"><p><span className="font-mono uppercase tracking-[0.18em] text-[#f5a623]/80">Contracts not yet deployed</span> · launching-soon state, no zero-address reads.</p><button onClick={() => setShowBanner(false)} className="text-zinc-500 hover:text-[#f5a623]">Dismiss</button></div> : null}</div></header><main className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">{children}</main><Footer /></div>;
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) { return <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.24em] text-[#f5a623]/70">{children}</p>; }
