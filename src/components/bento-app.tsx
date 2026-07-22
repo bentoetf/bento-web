@@ -150,7 +150,7 @@ function CaBadge() {
   const [copied, setCopied] = useState(false);
   if (contracts.bentoToken === PLACEHOLDER_ADDRESS) return null;
   const ca = contracts.bentoToken;
-  return <button onClick={async () => { try { await navigator.clipboard.writeText(ca); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {} }} title="Copy $BENTO contract address" className="hidden items-center gap-2 rounded-full border border-[#f5a623]/25 bg-[#f5a623]/5 px-3 py-1.5 font-mono text-[11px] text-zinc-400 transition hover:border-[#f5a623]/50 hover:text-[#f5a623] md:inline-flex"><span className="font-semibold text-[#f5a623]">$BENTO</span><span>{short(ca)}</span>{copied ? <Check className="h-3 w-3 text-[#22c55e]" /> : <Copy className="h-3 w-3" />}</button>;
+  return <button onClick={async () => { try { await navigator.clipboard.writeText(ca); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {} }} title="Copy $BENTO contract address" className="inline-flex items-center gap-2 rounded-full border border-[#f5a623]/25 bg-[#f5a623]/5 px-3 py-1.5 font-mono text-[11px] text-zinc-400 transition hover:border-[#f5a623]/50 hover:text-[#f5a623]"><span className="font-semibold text-[#f5a623]">$BENTO</span><span>{short(ca)}</span>{copied ? <Check className="h-3 w-3 text-[#22c55e]" /> : <Copy className="h-3 w-3" />}</button>;
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
