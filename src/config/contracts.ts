@@ -139,8 +139,8 @@ export const BOXES: readonly BoxInfo[] = [
     description: "Synthetic equal-weight basket of six semiconductor names, ETH-collateralized and oracle-priced.",
     token: SYNTHETIC_BOX_ADDRESSES.SEMI6,
     zapper: PLACEHOLDER_ADDRESS,
-    art: "/boxes/synthetic-512.svg",
-    thumb: "/boxes/synthetic-128.svg",
+    art: "/boxes/semi6-512.png",
+    thumb: "/boxes/semi6-128.png",
     componentSummary: "NVDA · AMD · MU · TSM · INTC · ASML",
     boxType: "synthetic",
     components: [
@@ -160,8 +160,8 @@ export const BOXES: readonly BoxInfo[] = [
     description: "Synthetic equal-weight basket of crypto-linked equities, ETH-collateralized and oracle-priced.",
     token: SYNTHETIC_BOX_ADDRESSES.CRYPTOEQ,
     zapper: PLACEHOLDER_ADDRESS,
-    art: "/boxes/synthetic-512.svg",
-    thumb: "/boxes/synthetic-128.svg",
+    art: "/boxes/cryptoeq-512.png",
+    thumb: "/boxes/cryptoeq-128.png",
     componentSummary: "COIN · MSTR · CRCL",
     boxType: "synthetic",
     components: [
@@ -178,8 +178,8 @@ export const BOXES: readonly BoxInfo[] = [
     description: "Synthetic 50/50 blend of the SPY and QQQ index proxies, ETH-collateralized and oracle-priced.",
     token: SYNTHETIC_BOX_ADDRESSES.SPYQQQ,
     zapper: PLACEHOLDER_ADDRESS,
-    art: "/boxes/synthetic-512.svg",
-    thumb: "/boxes/synthetic-128.svg",
+    art: "/boxes/spyqqq-512.png",
+    thumb: "/boxes/spyqqq-128.png",
     componentSummary: "SPY · QQQ",
     boxType: "synthetic",
     components: [
