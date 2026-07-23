@@ -7,7 +7,7 @@ import { AlertTriangle, ArrowDownRight, ArrowUpRight, Check, ChevronDown, Copy, 
 import { Suspense, useMemo, useState } from "react";
 import { decodeFunctionResult, encodeFunctionData, formatUnits, parseEther, parseUnits, type Address } from "viem";
 import { useAccount, useBalance, useConnect, useDisconnect, usePublicClient, useReadContract, useReadContracts, useWriteContract } from "wagmi";
-import { adapterAbi, boxEngineAbi, BOXES, boxBySymbol, contracts, erc20Abi, ETH_USD_FEED, feedAbi, hasBentoAddresses, hasDeployAddresses, hasZapperAddress, MAG7_COMPONENTS, PLACEHOLDER_ADDRESS, robinhood, USDG_ADDRESS, USDG_DECIMALS, zapperAbi, type BoxInfo } from "@/config/contracts";
+import { adapterAbi, boxEngineAbi, BOXES, boxBySymbol, contracts, erc20Abi, ETH_USD_FEED, feedAbi, hasBentoAddresses, hasDeployAddresses, hasZapperAddress, PLACEHOLDER_ADDRESS, robinhood, USDG_ADDRESS, USDG_DECIMALS, zapperAbi, type BoxInfo } from "@/config/contracts";
 
 type BoxData = readonly [Address, Address, number, number, bigint, boolean, boolean, string];
 type BackingData = readonly [readonly Address[], readonly bigint[], readonly bigint[], readonly bigint[]];
@@ -276,11 +276,17 @@ function BoxCard({ box, deployed, selected = false, onSelect }: { box: BoxInfo; 
 function MetricRow({ label, value, dim = false }: { label: string; value: string; dim?: boolean }) { return <div className="flex items-center justify-between gap-4 py-3"><SectionLabel>{label}</SectionLabel><span className={`font-mono text-sm font-bold tabular-nums text-zinc-100 ${dim ? "opacity-40" : ""}`}>{value}</span></div>; }
 
 export function ReservesPage() {
-  const data = useBentoData();
-  const vaultConfigured = !isZeroAddress(contracts.mag7Vault);
+  return <Suspense><ReservesPageInner /></Suspense>;
+}
+
+function ReservesPageInner() {
+  const [selectedBox, selectBox] = useSelectedBox();
+  const data = useBentoData(selectedBox);
+  const sym = selectedBox.symbol;
+  const vaultConfigured = !isZeroAddress(contracts.mag7Vault) && selectedBox.id === 1n;
   const totalSupply = data.totalSupplyRead.data as bigint | undefined;
   const backingRatio = (() => { if (!data.deployed || totalSupply === undefined || data.tvlUsd === undefined) return undefined; if (totalSupply === 0n) return "no supply yet"; const nav = data.navRead.data as bigint | undefined; if (nav === undefined) return undefined; const liabilities = (totalSupply * nav) / 10n ** 18n; if (liabilities === 0n) return "no supply yet"; const ratio = Number((data.tvlUsd * 10000n) / liabilities) / 100; return `${ratio.toFixed(2)}%`; })();
-  return <Panel muted={!data.deployed}><SectionLabel>Proof of reserves</SectionLabel><h1 className="mt-3 text-4xl font-black text-white">MAG7 reserve table</h1><p className="mt-3 max-w-3xl text-sm leading-7 text-zinc-400">Vault explorer links remain hidden until the vault env var is set. Token links are component token contracts, never zero-address placeholders.</p><div className="mt-6 grid gap-4 md:grid-cols-3"><StatCard label="Total backing" value={data.deployed ? formatUsd1e18(data.tvlUsd) : SOON} emptyChart={false} /><StatCard label="Box supply" value={data.deployed && totalSupply !== undefined ? `${formatBig(totalSupply)} MAG7` : SOON} emptyChart={false} /><StatCard label="Backing ratio" value={backingRatio ?? (data.deployed ? "—" : SOON)} emptyChart={false} /></div><div className="mt-6 overflow-x-auto"><table className="w-full min-w-[920px] text-left text-sm"><thead className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#f5a623]/60"><tr><th className="py-3">Stock</th><th>Token</th><th>Weight</th><th>Amount held</th><th>Feed price</th><th>Feed age</th><th>USD value</th>{vaultConfigured ? <th>Verify</th> : null}</tr></thead><tbody>{MAG7_COMPONENTS.map((c, i) => { const price = data.deployed && data.feedInfo[i]?.answer !== undefined && data.feedInfo[i]?.decimals !== undefined ? `$${formatBig(data.feedInfo[i].answer, data.feedInfo[i].decimals, 2)}` : SOON; return <tr key={c.symbol} className="border-t border-[#f5a623]/10"><td className="py-4"><div className="flex items-center gap-3"><StockLogo symbol={c.symbol} /><div><div className="font-mono font-bold text-white">{c.symbol}</div><div className="text-xs text-zinc-500">{c.name}</div></div></div></td><td><a href={explorerAddress(c.token)} target="_blank" rel="noreferrer" className="font-mono text-xs text-zinc-400 underline decoration-[#f5a623]/20 underline-offset-4">{short(c.token)}</a></td><td><WeightBar bps={c.weightBps} /></td><td className="font-mono text-zinc-400">{data.deployed ? formatBig(data.backingData?.[2]?.[i]) : SOON}</td><td className="font-mono text-zinc-400">{price}</td><td className="font-mono text-zinc-400">{data.deployed ? feedAge(data.feedInfo[i]?.updatedAt) : SOON}</td><td className="font-mono text-zinc-400">{data.deployed ? formatUsd1e18(data.backingData?.[3]?.[i]) : SOON}</td>{vaultConfigured ? <td><a href={explorerAddress(contracts.mag7Vault)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border border-[#f5a623]/25 px-3 py-2 font-mono text-xs text-[#f5a623]">Vault <ExternalLink className="h-3 w-3" /></a></td> : null}</tr>; })}</tbody></table></div><DisabledHint /></Panel>;
+  return <Panel muted={!data.deployed}><SectionLabel>Proof of reserves</SectionLabel><h1 className="mt-3 text-4xl font-black text-white">{sym} reserve table</h1><div className="mt-4"><BoxSelector selected={selectedBox} onSelect={selectBox} /></div><p className="mt-3 max-w-3xl text-sm leading-7 text-zinc-400">Vault explorer links remain hidden until the vault env var is set. Token links are component token contracts, never zero-address placeholders.</p><div className="mt-6 grid gap-4 md:grid-cols-3"><StatCard label="Total backing" value={data.deployed ? formatUsd1e18(data.tvlUsd) : SOON} emptyChart={false} /><StatCard label="Box supply" value={data.deployed && totalSupply !== undefined ? `${formatBig(totalSupply)} ${sym}` : SOON} emptyChart={false} /><StatCard label="Backing ratio" value={backingRatio ?? (data.deployed ? "—" : SOON)} emptyChart={false} /></div><div className="mt-6 overflow-x-auto"><table className="w-full min-w-[920px] text-left text-sm"><thead className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#f5a623]/60"><tr><th className="py-3">Stock</th><th>Token</th><th>Weight</th><th>Amount held</th><th>Feed price</th><th>Feed age</th><th>USD value</th>{vaultConfigured ? <th>Verify</th> : null}</tr></thead><tbody>{data.comps.map((c, i) => { const price = data.deployed && data.feedInfo[i]?.answer !== undefined && data.feedInfo[i]?.decimals !== undefined ? `$${formatBig(data.feedInfo[i].answer, data.feedInfo[i].decimals, 2)}` : SOON; return <tr key={c.symbol} className="border-t border-[#f5a623]/10"><td className="py-4"><div className="flex items-center gap-3"><StockLogo symbol={c.symbol} /><div><div className="font-mono font-bold text-white">{c.symbol}</div><div className="text-xs text-zinc-500">{c.name}</div></div></div></td><td><a href={explorerAddress(c.token)} target="_blank" rel="noreferrer" className="font-mono text-xs text-zinc-400 underline decoration-[#f5a623]/20 underline-offset-4">{short(c.token)}</a></td><td><WeightBar bps={c.weightBps} /></td><td className="font-mono text-zinc-400">{data.deployed ? formatBig(data.backingData?.[2]?.[i]) : SOON}</td><td className="font-mono text-zinc-400">{price}</td><td className="font-mono text-zinc-400">{data.deployed ? feedAge(data.feedInfo[i]?.updatedAt) : SOON}</td><td className="font-mono text-zinc-400">{data.deployed ? formatUsd1e18(data.backingData?.[3]?.[i]) : SOON}</td>{vaultConfigured ? <td><a href={explorerAddress(contracts.mag7Vault)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border border-[#f5a623]/25 px-3 py-2 font-mono text-xs text-[#f5a623]">Vault <ExternalLink className="h-3 w-3" /></a></td> : null}</tr>; })}</tbody></table></div><DisabledHint /></Panel>;
 }
 
 function StockLogo({ symbol }: { symbol: string }) { return <div className="grid h-11 w-11 place-items-center rounded-2xl border border-[#f5a623]/25 bg-black font-mono text-xs font-black text-[#f5a623]">{symbol.slice(0, 2)}</div>; }
@@ -306,7 +312,13 @@ export function RedeemPage() { return <Suspense><RedeemPageInner /></Suspense>; 
 function RedeemPageInner() { const [selectedBox, selectBox] = useSelectedBox(); const data = useBentoData(selectedBox); const sym = selectedBox.symbol; const pendingClaims = data.claimsReads.data?.some((r) => ((r.result as bigint | undefined) ?? 0n) > 0n); return <section className="grid gap-5 lg:grid-cols-2"><Panel muted={!data.deployed}>{pendingClaims ? <Link href="/portfolio" className="mb-5 block rounded-2xl border border-[#f5a623]/20 bg-[#f5a623]/10 p-3 text-sm text-[#f5a623]">You have pending failed-leg claims. Open Portfolio to execute claims.</Link> : null}<SectionLabel>Redeem {sym}</SectionLabel><h1 className="mt-2 text-4xl font-black text-white">Exit route</h1><div className="mt-5"><BoxSelector selected={selectedBox} onSelect={selectBox} /></div><div className="mt-5"><StatCard label="Connected balance" value={data.boxBalanceRead.data ? `${formatBig(data.boxBalanceRead.data as bigint)} ${sym}` : data.deployed ? "—" : SOON} emptyChart={false} /></div><div className="mt-5"><FormInput label={`${sym} amount`} value={data.redeemAmount} onChange={data.setRedeemAmount} suffix={sym} large /></div><div className="mt-5"><FormInput label="Slippage" value={data.slippage} onChange={data.setSlippage} suffix="%" /></div><div className="mt-5 grid gap-4"><StatCard label="Redeem fee" value={data.deployed ? `${formatBig(parseSafeEther(data.redeemAmount) * data.redeemFeeBps / BPS, 18, 6)} ${sym}` : SOON} emptyChart={false} /><StatCard label="ETH quote" value={data.redeemQuote.ethOut ? `${formatBig(data.redeemQuote.ethOut, 18, 6)} ETH` : data.redeemQuote.error || (data.deployed ? "—" : SOON)} emptyChart={false} /><StatCard label="Minimum ETH out" value={data.redeemQuote.minEthOut ? `${formatBig(data.redeemQuote.minEthOut, 18, 6)} ETH` : data.deployed ? "—" : SOON} emptyChart={false} /></div><div className="mt-5 flex flex-wrap gap-3"><Action onClick={data.quoteRedeem} disabled={!data.deployed}>Quote ETH path</Action><Action onClick={data.redeemForEth} disabled={!data.isConnected || data.writePending} variant="outline">Redeem for ETH</Action><Action onClick={data.redeemForStocks} disabled={!data.isConnected || data.writePending} variant="outline">Redeem for stocks</Action></div><DisabledHint /></Panel><Panel muted={!data.deployed}><SectionLabel>Execution guardrails</SectionLabel><Breakdown title="Redeem ETH leg minimums" components={selectedBox.components} quotes={data.redeemQuote.componentQuotes} mins={data.redeemQuote.componentMins} unit="ETH" /></Panel>{data.txMessage ? <Toast text={data.txMessage} /> : null}</section>; }
 
 export function PortfolioPage() {
-  const data = useBentoData();
+  return <Suspense><PortfolioPageInner /></Suspense>;
+}
+
+function PortfolioPageInner() {
+  const [selectedBox, selectBox] = useSelectedBox();
+  const data = useBentoData(selectedBox);
+  const sym = selectedBox.symbol;
   const ethRound = data.ethFeedReads.data?.[0]?.result as readonly [bigint, bigint, bigint, bigint, bigint] | undefined;
   const ethFeedDecimals = data.ethFeedReads.data?.[1]?.result as number | undefined;
   const ethStale = data.deployed && isFeedStale(ethRound?.[3]);
@@ -321,7 +333,7 @@ export function PortfolioPage() {
     return {
       symbol: component.symbol,
       name: component.name,
-      kind: vaultShare > 0n && walletBalance === 0n ? "via MAG7 box" : "underlying stock",
+      kind: vaultShare > 0n && walletBalance === 0n ? `via ${sym} box` : "underlying stock",
       amount: data.deployed ? formatBig(balance) : SOON,
       usd: stale ? "market closed" : data.deployed ? formatUsd1e18(usdFromBalance(balance, feed?.answer, feed?.decimals)) : SOON,
     };
@@ -336,14 +348,14 @@ export function PortfolioPage() {
       <Panel>
         <SectionLabel>Portfolio</SectionLabel>
         <h1 className="mt-2 text-4xl font-black text-white">Connect to view holdings</h1>
-        <p className="mt-3 text-sm text-zinc-400">Connect a wallet to read live ETH, MAG7, stock balances, and pending claims.</p>
+        <p className="mt-3 text-sm text-zinc-400">Connect a wallet to read live ETH, box token, stock balances, and pending claims.</p>
         <div className="mt-5"><WalletPanel /></div>
       </Panel>
     );
   }
 
   const totalBoxSupply = data.totalSupplyRead.data as bigint | undefined;
-  const supplyShare = (() => { if (!data.deployed || !boxBalance || !totalBoxSupply || totalBoxSupply === 0n) return undefined; const bps = Number((boxBalance * 1000000n) / totalBoxSupply) / 10000; return bps >= 0.01 ? `${bps.toFixed(2)}% of all MAG7` : "<0.01% of all MAG7"; })();
+  const supplyShare = (() => { if (!data.deployed || !boxBalance || !totalBoxSupply || totalBoxSupply === 0n) return undefined; const bps = Number((boxBalance * 1000000n) / totalBoxSupply) / 10000; return bps >= 0.01 ? `${bps.toFixed(2)}% of all ${sym}` : `<0.01% of all ${sym}`; })();
   const ethUsd = ethStale
     ? "market closed"
     : data.deployed
@@ -355,10 +367,11 @@ export function PortfolioPage() {
       <Panel muted={!data.deployed}>
         <SectionLabel>Portfolio</SectionLabel>
         <h1 className="mt-2 text-4xl font-black text-white">Wallet holdings</h1>
+        <div className="mt-4"><BoxSelector selected={selectedBox} onSelect={selectBox} /></div>
         {!data.deployed ? <DisabledHint /> : null}
         {supplyShare ? <p className="mt-3 font-mono text-sm text-[#f5a623]">{supplyShare}</p> : null}
         {data.deployed && !hasHoldings ? (
-          <div className="mt-6 rounded-2xl border border-[#f5a623]/10 bg-black/25 p-6 text-sm text-zinc-500">No MAG7, component stock, or ETH holdings found for this wallet.</div>
+          <div className="mt-6 rounded-2xl border border-[#f5a623]/10 bg-black/25 p-6 text-sm text-zinc-500">No {sym}, component stock, or ETH holdings found for this wallet.</div>
         ) : null}
         <div className="mt-6 overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-sm">
@@ -367,7 +380,7 @@ export function PortfolioPage() {
             </thead>
             <tbody>
               <HoldingRow name="ETH" kind="native" amount={data.ethBalanceRead.data ? formatBig(data.ethBalanceRead.data.value, 18, 6) : data.deployed ? "—" : SOON} usd={ethUsd} />
-              <HoldingRow name="MAG7 Box" kind="box token" amount={data.deployed ? formatBig(boxBalance) : SOON} usd={data.deployed ? formatUsd1e18(usdFromNav(boxBalance, data.navRead.data as bigint | undefined)) : SOON} />
+              <HoldingRow name={selectedBox.name} kind="box token" amount={data.deployed ? formatBig(boxBalance) : SOON} usd={data.deployed ? formatUsd1e18(usdFromNav(boxBalance, data.navRead.data as bigint | undefined)) : SOON} />
               {stockRows.map((row) => <HoldingRow key={row.symbol} name={`${row.symbol} · ${row.name}`} kind={row.kind} amount={row.amount} usd={row.usd} />)}
             </tbody>
           </table>
