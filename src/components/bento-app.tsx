@@ -26,6 +26,7 @@ const navItems = [
   { href: "/docs", label: "Docs" },
   { href: "/guide", label: "Guide" },
   { href: "/how-it-works", label: "How boxes work" },
+  { href: "/roadmap", label: "Roadmap" },
 ];
 
 function short(addr?: string) { return addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : "—"; }
@@ -323,21 +324,110 @@ function OverviewPageInner() {
   return <><section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem]"><Panel className="min-h-[33rem] p-7 sm:p-8"><div className="grid h-full gap-8 xl:grid-cols-[17rem_minmax(0,1fr)_minmax(19rem,0.95fr)]"><div className="flex items-start justify-center xl:justify-start"><BoxArt box={selectedBox} /></div><div className="flex flex-col justify-center"><SectionLabel>Featured box</SectionLabel><h1 className="mt-4 text-4xl font-semibold tracking-tight text-white sm:text-6xl">{selectedBox.name}</h1><p className="mt-4 max-w-md text-base leading-7 text-zinc-400">{selectedBox.description}</p><div className="mt-5"><BoxSelector selected={selectedBox} onSelect={selectBox} /></div><div className="mt-6"><ProofBadge /></div></div><div className="flex flex-col justify-center"><SectionLabel>NAV (on-chain)</SectionLabel><div className="mt-3"><Value large dim={!data.deployed}>{navValue}</Value></div>{!data.deployed ? <p className="mt-2 text-sm text-zinc-500">launching soon</p> : null}<p className="mt-2 font-mono text-sm text-zinc-500">24h change: {moveValue}</p><div className="mt-5"><NavSparkline series={heroSeries} change={heroChange} /></div><div className="mt-5 flex gap-3"><Link href={`/mint?box=${selectedBox.symbol}`} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#f5a623] px-6 py-3 text-sm font-semibold text-black hover:brightness-110"><ArrowUpRight className="h-4 w-4" />Mint</Link><Link href={`/redeem?box=${selectedBox.symbol}`} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#f5a623]/45 px-6 py-3 text-sm font-semibold text-[#f5a623] hover:bg-[#f5a623]/10"><ArrowDownRight className="h-4 w-4" />Redeem</Link></div></div></div></Panel><aside className="grid gap-4"><StatCard label={`${selectedBox.symbol} TVL`} value={tvlValue} caption={data.deployed ? "on-chain backing" : "launching soon"} dim={!data.deployed} /><StatCard label="BENTO burned" value={bentoBurned !== undefined ? `${formatBig(bentoBurned, 18, 2)} BENTO` : "—"} caption={bentoBurned !== undefined ? "every mint burns BENTO" : "launching soon"} dim={bentoBurned === undefined} /><StatCard label="Fees collected" value={overviewFees ?? "—"} caption={overviewFees !== undefined ? "ETH awaiting buyback" : "launching soon"} dim={overviewFees === undefined} /></aside></section><section><SectionLabel>Index boxes</SectionLabel><div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{BOXES.map((box) => <BoxCard key={box.symbol} box={box} deployed={data.deployed} selected={selectedBox.symbol === box.symbol} onSelect={() => selectBox(box)} />)}<Panel className="flex min-h-[18rem] items-center justify-center border-dashed"><div className="text-center"><SectionLabel>More boxes soon</SectionLabel><p className="mt-3 text-sm text-zinc-500">New boxes appear here only after real contracts, feeds, and reserves exist.</p></div></Panel></div></section><RoadmapSection /></>;
 }
 
-const ROADMAP_ITEMS: { title: string; body: string; status: string }[] = [
-  { title: "Pay with USDG", body: "Mint boxes directly with USDG. One transaction swaps to ETH and mints through the same reserve-backed path.", status: "deployed" },
-  { title: "AI Box", body: "A second index box of AI names with live Chainlink feeds and real on-chain liquidity. Ships through the 24h timelock.", status: "deployed" },
-  { title: "Elon Box", body: "SpaceX and Tesla in one box, 50/50. Fork-tested against live pools and feeds; ships through the 24h timelock.", status: "built · deploying after launch" },
-  { title: "LP with box tokens", body: "A MAG7/USDG pool for one-click buys and a live chart. Mint/redeem arbitrage keeps the pool price pinned to NAV.", status: "planned" },
-  { title: "Boxes as collateral", body: "A Chainlink-compatible NAV oracle is built, enabling isolated lending markets where box tokens are collateral for USDG borrowing.", status: "oracle built · market planned" },
-  { title: "Request a box", body: "Community-requested baskets, curated and deployed through the timelock. Fully permissionless box creation comes later, after external review.", status: "planned" },
-  { title: "Open stats API", body: "Public JSON endpoint with live NAV, TVL, reserves and burn totals, so bots, dashboards and other builders can integrate Bento directly.", status: "built · live at launch" },
-  { title: "Earn on your box", body: "Once box tokens work as collateral, an earn view surfaces lending yield on MAG7. Tokenized stocks that earn.", status: "planned" },
-  { title: "Vote with BENTO", body: "Holders vote on which box ships next. Winning baskets deploy through the timelock.", status: "planned" },
-  { title: "Recurring buys", body: "Set-and-forget DCA into any box, for example 50 USDG of MAG7 every week.", status: "exploring" },
+type RoadmapItem = { title: string; body: string; done?: boolean };
+type RoadmapPhase = { phase: string; title: string; status: "live" | "in progress" | "in testing" | "planned"; blurb: string; items: RoadmapItem[] };
+
+const ROADMAP_PHASES: RoadmapPhase[] = [
+  {
+    phase: "Phase 1", title: "Foundation", status: "live",
+    blurb: "The core protocol: reserve-backed index boxes with on-chain proof, live on Robinhood Chain.",
+    items: [
+      { title: "MAG7 Box", body: "Seven tokenized megacaps in one box, fully backed by vault reserves.", done: true },
+      { title: "AI3 Box", body: "NVDA, AMD and MU with live Chainlink feeds and real on-chain liquidity.", done: true },
+      { title: "Pay with USDG", body: "Mint boxes directly with USDG. One transaction swaps to ETH and mints through the same reserve-backed path.", done: true },
+      { title: "Proof of reserves", body: "Vault balances are public and must cover box supply. No mocked numbers.", done: true },
+      { title: "BENTO buyback and burn", body: "Box fees route to buying BENTO and burning it.", done: true },
+      { title: "Open stats API", body: "Public JSON endpoint with live NAV, TVL, reserves and burn totals for bots and dashboards.", done: true },
+    ],
+  },
+  {
+    phase: "Phase 2", title: "Expansion", status: "in progress",
+    blurb: "A much wider menu. Synthetic boxes track prices through Chainlink feeds with ETH collateral, so components no longer need DEX liquidity on Robinhood Chain.",
+    items: [
+      { title: "Synthetic boxes", body: "35+ equities become available as box components: SPY, QQQ, COIN, MSTR, semis, space and more." },
+      { title: "Box type labels", body: "Every box is clearly labeled 1:1 BACKED or SYNTHETIC, with a full explainer page.", done: true },
+      { title: "Elon Box", body: "SpaceX and Tesla in one box, 50/50. Fork-tested; ships through the 24h timelock." },
+      { title: "More 1:1 boxes", body: "New backed boxes as feeds and liquidity come online, deployed through the timelock." },
+    ],
+  },
+  {
+    phase: "Phase 3", title: "BentoPad", status: "in testing",
+    blurb: "Permissionless box creation. Anyone builds a basket, launches it with its own coin, and earns from it.",
+    items: [
+      { title: "Create your own box", body: "Pick components and weights from every supported feed, deploy a synthetic box in one transaction." },
+      { title: "Creator coins", body: "Each box launches with its own tradable coin through the Pons launcher, LP locked permanently." },
+      { title: "Creator fee share", body: "Trading fees split between the protocol and box creators. Token-side fees burn automatically." },
+      { title: "Box registry", body: "Every BentoPad box is on-chain, discoverable, and labeled by type." },
+    ],
+  },
+  {
+    phase: "Phase 4", title: "Utility", status: "planned",
+    blurb: "Box tokens become productive assets, not just exposure.",
+    items: [
+      { title: "LP with box tokens", body: "Box/USDG pools for one-click buys and live charts. Mint/redeem arbitrage keeps price pinned to NAV." },
+      { title: "Boxes as collateral", body: "A Chainlink-compatible NAV oracle enables isolated lending markets where box tokens back USDG borrowing." },
+      { title: "Earn on your box", body: "Lending yield on box tokens surfaces in an earn view. Tokenized stocks that earn." },
+      { title: "Recurring buys", body: "Set-and-forget DCA into any box, for example 50 USDG of MAG7 every week." },
+    ],
+  },
+  {
+    phase: "Phase 5", title: "BENTO Utility", status: "planned",
+    blurb: "With box creation permissionless, BENTO becomes the key to standing out and paying less.",
+    items: [
+      { title: "Featured box curation", body: "BENTO-weighted signal decides which community boxes get featured placement on the site." },
+      { title: "Creator boosts", body: "Hold BENTO for a larger creator fee share and discounted box creation." },
+      { title: "Fee alignment", body: "Protocol fee knobs stay aligned with BENTO holders as the box menu grows." },
+    ],
+  },
 ];
 
+const PHASE_STATUS_STYLES: Record<RoadmapPhase["status"], string> = {
+  live: "border-[#22c55e]/40 text-[#22c55e]",
+  "in progress": "border-[#f5a623]/40 text-[#f5a623]",
+  "in testing": "border-[#f5a623]/40 text-[#f5a623]",
+  planned: "border-zinc-600/60 text-zinc-400",
+};
+
 function RoadmapSection() {
-  return <section><SectionLabel>Coming soon</SectionLabel><p className="mt-2 max-w-2xl text-sm text-zinc-500">In the order they unlock. No dates promised; everything ships through the 24h timelock and gets announced when live.</p><div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{ROADMAP_ITEMS.map((item) => <Panel key={item.title} className="p-5"><div className="flex items-start justify-between gap-3"><h3 className="text-lg font-semibold text-white">{item.title}</h3><span className={`whitespace-nowrap rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] ${item.status === "deployed" ? "border-[#22c55e]/40 text-[#22c55e]" : "border-[#f5a623]/20 text-[#f5a623]/80"}`}>{item.status}</span></div><p className="mt-3 text-sm leading-6 text-zinc-400">{item.body}</p></Panel>)}</div></section>;
+  return <section><Panel className="flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-7"><div><SectionLabel>Roadmap</SectionLabel><p className="mt-2 max-w-xl text-sm leading-6 text-zinc-400">Synthetic boxes, BentoPad, boxes as collateral and more. See what is live, what is in testing, and what ships next.</p></div><Link href="/roadmap" className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-[#f5a623]/45 px-5 py-2.5 text-sm font-semibold text-[#f5a623] hover:bg-[#f5a623]/10">View the roadmap<ArrowUpRight className="h-4 w-4" /></Link></Panel></section>;
+}
+
+export function RoadmapPage() {
+  return <section className="mx-auto w-full max-w-4xl">
+    <Panel className="p-7 sm:p-10">
+      <SectionLabel>Roadmap</SectionLabel>
+      <h1 className="mt-2 text-4xl font-black text-white">The Bento roadmap</h1>
+      <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-400">In the order they unlock. No dates promised; everything ships through the 24h timelock and gets announced when live.</p>
+      <div className="relative mt-10">
+        <div className="absolute bottom-5 left-[11px] top-1 w-px bg-gradient-to-b from-[#f5a623]/60 via-[#f5a623]/25 to-transparent" aria-hidden />
+        <ol className="space-y-8">
+          {ROADMAP_PHASES.map((p) => (
+            <li key={p.phase} className="relative pl-10">
+              <span className={`absolute left-0 top-1 flex h-6 w-6 items-center justify-center rounded-full border bg-[#10100e] ${p.status === "live" ? "border-[#22c55e]/60" : p.status === "planned" ? "border-zinc-600" : "border-[#f5a623]/60"}`} aria-hidden>
+                <span className={`h-2 w-2 rounded-full ${p.status === "live" ? "bg-[#22c55e]" : p.status === "planned" ? "bg-zinc-600" : "bg-[#f5a623]"}`} />
+              </span>
+              <div className="rounded-2xl border border-[#f5a623]/15 bg-black/25 p-6">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="text-xl font-semibold text-white"><span className="font-mono text-xs font-normal uppercase tracking-[0.18em] text-zinc-500">{p.phase}</span> · {p.title}</h2>
+                  <span className={`whitespace-nowrap rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] ${PHASE_STATUS_STYLES[p.status]}`}>{p.status}</span>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-zinc-400">{p.blurb}</p>
+                <ul className="mt-4 space-y-3">
+                  {p.items.map((item) => (
+                    <li key={item.title} className="flex items-start gap-3 text-sm leading-6">
+                      <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${item.done ? "bg-[#22c55e]" : "bg-zinc-600"}`} aria-hidden />
+                      <span className="text-zinc-400"><span className="text-zinc-200">{item.title}.</span> {item.body}{item.done ? <span className="ml-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[#22c55e]">live</span> : null}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+      <p className="mt-8 text-xs leading-6 text-zinc-500">Order can change. Nothing here is a promise of returns; Bento is unaudited and every change goes through the public 24h timelock before it is live.</p>
+    </Panel>
+  </section>;
 }
 
 function BoxCard({ box, deployed, selected = false, onSelect }: { box: BoxInfo; deployed: boolean; selected?: boolean; onSelect?: () => void }) {
