@@ -52,7 +52,7 @@ export type BoxInfo = {
 export const BOXES: readonly BoxInfo[] = [
   {
     id: 1n,
-    name: "MAG7 Box",
+    name: "MAG7 Bento Box",
     symbol: "MAG7",
     description: "Equal-weight basket of seven tokenized equities with on-chain reserve accounting.",
     token: (process.env.NEXT_PUBLIC_MAG7_BOX_TOKEN_ADDRESS || "0xA4d595f7BECafAAFD3FD279776551D88AD4B26e5") as Address,
@@ -72,7 +72,7 @@ export const BOXES: readonly BoxInfo[] = [
   },
   {
     id: 2n,
-    name: "AI Bento Box",
+    name: "AI3 Bento Box",
     symbol: "AI3",
     description: "Equal-weight basket of three tokenized AI equities with on-chain reserve accounting.",
     token: (process.env.NEXT_PUBLIC_AI3_BOX_TOKEN_ADDRESS || "0xa98AC72547c656520BD2DaD3C38F619e7EC21BB2") as Address,
