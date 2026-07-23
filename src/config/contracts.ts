@@ -27,6 +27,15 @@ export const contracts = {
   perTxMintCapWei: 2_000_000_000_000_000_000n,
 } as const;
 
+export type BoxComponent = {
+  symbol: string;
+  name: string;
+  token: Address;
+  feed: Address;
+  weightBps: bigint;
+  thinPoolWarning: boolean;
+};
+
 export type BoxInfo = {
   id: bigint;
   name: string;
@@ -37,6 +46,7 @@ export type BoxInfo = {
   art: string;
   thumb: string;
   componentSummary: string;
+  components: readonly BoxComponent[];
 };
 
 export const BOXES: readonly BoxInfo[] = [
@@ -50,6 +60,15 @@ export const BOXES: readonly BoxInfo[] = [
     art: "/boxes/mag7-512.png",
     thumb: "/boxes/mag7-128.png",
     componentSummary: "NVDA · AAPL · MSFT · GOOGL · AMZN · META · TSLA",
+    components: [
+      { symbol: "NVDA", name: "NVIDIA", token: "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC" as Address, feed: "0x379EC4f7C378F34a1B47E4F3cbeBCbAC3E8E9F15" as Address, weightBps: 1428n, thinPoolWarning: false },
+      { symbol: "AAPL", name: "Apple", token: "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9" as Address, feed: "0x6B22A786bAa607d76728168703a39Ea9C99f2cD0" as Address, weightBps: 1428n, thinPoolWarning: false },
+      { symbol: "MSFT", name: "Microsoft", token: "0xe93237C50D904957Cf27E7B1133b510C669c2e74" as Address, feed: "0x45C3C877C15E6BA2EBB19eA114Ea508d14C1Af2E" as Address, weightBps: 1428n, thinPoolWarning: true },
+      { symbol: "GOOGL", name: "Alphabet", token: "0x2e0847E8910a9732eB3fb1bb4b70a580ADAD4FE3" as Address, feed: "0xF6f373a037c30F0e5010d854385cA89185AE638b" as Address, weightBps: 1428n, thinPoolWarning: false },
+      { symbol: "AMZN", name: "Amazon", token: "0x12f190a9F9d7D37a250758b26824B97CE941bF54" as Address, feed: "0xD5a1508ceD74c084eBf3cBe853e2C968fB2a651C" as Address, weightBps: 1428n, thinPoolWarning: false },
+      { symbol: "META", name: "Meta", token: "0xc0D6457C16Cc70d6790Dd43521C899C87ce02f35" as Address, feed: "0x7C38C00C30BEe9378381E7B6135d7283356D71b1" as Address, weightBps: 1428n, thinPoolWarning: true },
+      { symbol: "TSLA", name: "Tesla", token: "0x322F0929c4625eD5bAd873c95208D54E1c003b2d" as Address, feed: "0x4A1166a659A55625345e9515b32adECea5547C38" as Address, weightBps: 1432n, thinPoolWarning: false },
+    ],
   },
   {
     id: 2n,
@@ -61,8 +80,18 @@ export const BOXES: readonly BoxInfo[] = [
     art: "/boxes/ai3-512.png",
     thumb: "/boxes/ai3-128.png",
     componentSummary: "NVDA · AMD · MU",
+    components: [
+      { symbol: "NVDA", name: "NVIDIA", token: "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC" as Address, feed: "0x379EC4f7C378F34a1B47E4F3cbeBCbAC3E8E9F15" as Address, weightBps: 3333n, thinPoolWarning: false },
+      { symbol: "AMD", name: "AMD", token: "0x86923f96303D656E4aa86D9d42D1e57ad2023fdC" as Address, feed: "0x943A29E7ae51A4798823ca9eEd2ed533B2A22C72" as Address, weightBps: 3333n, thinPoolWarning: false },
+      { symbol: "MU", name: "Micron", token: "0xfF080c8ce2E5feadaCa0Da81314Ae59D232d4afD" as Address, feed: "0x425EEFdCf05ed6526C3cE61Af99429A228a6d596" as Address, weightBps: 3334n, thinPoolWarning: false },
+    ],
   },
 ] as const;
+
+export function boxBySymbol(symbol?: string | null): BoxInfo {
+  const match = symbol ? BOXES.find((b) => b.symbol.toLowerCase() === symbol.toLowerCase()) : undefined;
+  return match ?? BOXES[0];
+}
 
 export const ETH_USD_FEED = "0x78F3556b67E17Df817D51Ef5a990cDaF09E8d3A9" as Address;
 export const USDG_ADDRESS = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168" as Address;
