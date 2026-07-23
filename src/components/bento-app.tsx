@@ -25,6 +25,7 @@ const navItems = [
   { href: "/bento", label: "BENTO" },
   { href: "/docs", label: "Docs" },
   { href: "/guide", label: "Guide" },
+  { href: "/how-it-works", label: "How boxes work" },
 ];
 
 function short(addr?: string) { return addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : "—"; }
@@ -269,6 +270,15 @@ function NavSparkline({ series, change }: { series: number[] | null | undefined;
   );
 }
 function BoxArt({ box }: { box: BoxInfo }) { return <div className="relative aspect-square w-full max-w-[18rem] overflow-hidden rounded-3xl bg-black"><Image src={box.art} alt={`${box.name} artwork`} fill sizes="(min-width: 1280px) 17rem, 18rem" className="object-cover" priority /></div>; }
+const BOX_TYPE_STYLES = {
+  backed: { label: "1:1 BACKED", className: "border-[#22c55e]/30 bg-[#22c55e]/10 text-[#22c55e]" },
+  synthetic: { label: "SYNTHETIC", className: "border-[#818cf8]/30 bg-[#818cf8]/10 text-[#818cf8]" },
+  mixed: { label: "MIXED", className: "border-[#f59e0b]/30 bg-[#f59e0b]/10 text-[#f59e0b]" },
+} as const;
+function BoxTypeBadge({ type }: { type: keyof typeof BOX_TYPE_STYLES }) {
+  const s = BOX_TYPE_STYLES[type];
+  return <Link href="/how-it-works" onClick={(e) => e.stopPropagation()} title="How boxes work" className={`inline-flex rounded-full border px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] transition hover:brightness-125 ${s.className}`}>{s.label}</Link>;
+}
 function ProofBadge() { return <Link href="/reserves" className="inline-flex items-center gap-2 rounded-full border border-[#22c55e]/25 bg-[#22c55e]/10 px-3 py-2 text-xs font-semibold text-[#22c55e]"><Check className="h-3.5 w-3.5" /> <span className="font-mono uppercase tracking-[0.16em]">Proof of reserves</span><span className="text-zinc-300">100% backed by on-chain reserves</span></Link>; }
 function FormInput({ label, value, onChange, suffix, large = false }: { label: string; value: string; onChange: (v: string) => void; suffix: string; large?: boolean }) { return <label className="block"><SectionLabel>{label}</SectionLabel><div className="mt-2 flex rounded-2xl border border-[#f5a623]/20 bg-black/45"><input className={`min-w-0 flex-1 bg-transparent px-4 py-4 font-mono font-black text-zinc-100 outline-none tabular-nums ${large ? "text-5xl sm:text-7xl" : "text-lg"}`} value={value} onChange={(e) => onChange(e.target.value)} inputMode="decimal" /><span className="px-4 py-4 font-mono text-xs uppercase tracking-[0.18em] text-zinc-500">{suffix}</span></div></label>; }
 function Action({ children, onClick, disabled, variant = "filled", large = false }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; variant?: "filled" | "outline"; large?: boolean }) { return <button onClick={onClick} disabled={disabled} className={`rounded-2xl px-5 py-3 font-mono text-xs font-black uppercase tracking-[0.18em] disabled:cursor-not-allowed disabled:opacity-40 ${large ? "w-full py-5" : ""} ${variant === "filled" ? "bg-[#f5a623] text-black hover:brightness-110" : "border border-[#f5a623]/45 text-[#f5a623] hover:bg-[#f5a623]/10"}`}>{children}</button>; }
@@ -339,7 +349,7 @@ function BoxCard({ box, deployed, selected = false, onSelect }: { box: BoxInfo; 
   const nav = deployed ? formatUsd1e18(displayNav) : "$—.————";
   const move = deployed ? formatChangePercent(change24h) : "—";
   const tvl = deployed ? formatUsd1e18(tvlUsd) : "—";
-  return <Panel className={`min-h-[18rem] transition ${onSelect ? "cursor-pointer hover:border-[#f5a623]/40" : ""} ${selected ? "border-[#f5a623]/60 ring-1 ring-[#f5a623]/40" : ""}`}><div role={onSelect ? "button" : undefined} tabIndex={onSelect ? 0 : undefined} onClick={onSelect} onKeyDown={onSelect ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); } } : undefined} className="outline-none"><div className="flex items-start justify-between gap-4"><div className="flex items-center gap-3"><div className="relative h-12 w-12 overflow-hidden rounded-xl bg-black"><Image src={box.thumb} alt={`${box.name} thumbnail`} fill sizes="48px" className="object-cover" loading="lazy" /></div><div><h2 className="text-2xl font-semibold text-white">{box.name}</h2><span className="mt-1 inline-flex rounded-full border border-[#f5a623]/20 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-[#f5a623]">{box.symbol}</span></div></div>{selected ? <span className="rounded-full border border-[#f5a623]/40 bg-[#f5a623]/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-[#f5a623]">Selected</span> : null}</div><p className="mt-5 text-sm leading-6 text-zinc-500">{box.description}</p><p className="mt-2 font-mono text-xs text-zinc-600">{box.componentSummary}</p><div className="mt-6 divide-y divide-[#f5a623]/10 border-y border-[#f5a623]/10"><MetricRow label="NAV" value={nav} dim={!deployed} /><MetricRow label="24h change" value={move} dim={!deployed} /><MetricRow label="TVL" value={tvl} dim={!deployed} /></div></div><div className="mt-5 flex gap-3"><Link href={`/mint?box=${box.symbol}`} className="inline-flex items-center gap-2 rounded-2xl bg-[#f5a623] px-4 py-2 text-xs font-semibold text-black hover:brightness-110"><ArrowUpRight className="h-3.5 w-3.5" />Mint</Link><Link href={`/redeem?box=${box.symbol}`} className="inline-flex items-center gap-2 rounded-2xl border border-[#f5a623]/45 px-4 py-2 text-xs font-semibold text-[#f5a623] hover:bg-[#f5a623]/10"><ArrowDownRight className="h-3.5 w-3.5" />Redeem</Link></div></Panel>;
+  return <Panel className={`min-h-[18rem] transition ${onSelect ? "cursor-pointer hover:border-[#f5a623]/40" : ""} ${selected ? "border-[#f5a623]/60 ring-1 ring-[#f5a623]/40" : ""}`}><div role={onSelect ? "button" : undefined} tabIndex={onSelect ? 0 : undefined} onClick={onSelect} onKeyDown={onSelect ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); } } : undefined} className="outline-none"><div className="flex items-start justify-between gap-4"><div className="flex items-center gap-3"><div className="relative h-12 w-12 overflow-hidden rounded-xl bg-black"><Image src={box.thumb} alt={`${box.name} thumbnail`} fill sizes="48px" className="object-cover" loading="lazy" /></div><div><h2 className="text-2xl font-semibold text-white">{box.name}</h2><span className="mt-1 inline-flex items-center gap-2"><span className="inline-flex rounded-full border border-[#f5a623]/20 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-[#f5a623]">{box.symbol}</span><BoxTypeBadge type={box.boxType} /></span></div></div>{selected ? <span className="rounded-full border border-[#f5a623]/40 bg-[#f5a623]/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-[#f5a623]">Selected</span> : null}</div><p className="mt-5 text-sm leading-6 text-zinc-500">{box.description}</p><p className="mt-2 font-mono text-xs text-zinc-600">{box.componentSummary}</p><div className="mt-6 divide-y divide-[#f5a623]/10 border-y border-[#f5a623]/10"><MetricRow label="NAV" value={nav} dim={!deployed} /><MetricRow label="24h change" value={move} dim={!deployed} /><MetricRow label="TVL" value={tvl} dim={!deployed} /></div></div><div className="mt-5 flex gap-3"><Link href={`/mint?box=${box.symbol}`} className="inline-flex items-center gap-2 rounded-2xl bg-[#f5a623] px-4 py-2 text-xs font-semibold text-black hover:brightness-110"><ArrowUpRight className="h-3.5 w-3.5" />Mint</Link><Link href={`/redeem?box=${box.symbol}`} className="inline-flex items-center gap-2 rounded-2xl border border-[#f5a623]/45 px-4 py-2 text-xs font-semibold text-[#f5a623] hover:bg-[#f5a623]/10"><ArrowDownRight className="h-3.5 w-3.5" />Redeem</Link></div></Panel>;
 }
 function MetricRow({ label, value, dim = false }: { label: string; value: string; dim?: boolean }) { return <div className="flex items-center justify-between gap-4 py-3"><SectionLabel>{label}</SectionLabel><span className={`font-mono text-sm font-bold tabular-nums text-zinc-100 ${dim ? "opacity-40" : ""}`}>{value}</span></div>; }
 
@@ -538,6 +548,90 @@ export function GuidePage() {
   ];
   const cas: [string, Address][] = [["MAG7 box token", contracts.mag7BoxToken], ["BENTO", contracts.bentoToken]];
   return <section className="mx-auto w-full max-w-3xl"><Panel className="p-7 sm:p-10"><SectionLabel>Getting started</SectionLabel><h1 className="mt-2 text-4xl font-black text-white">Onboarding guide</h1><p className="mt-3 text-sm leading-6 text-zinc-400">From zero to holding a MAG7 box in six steps. No prior on-chain experience needed.</p><div className="mt-6"><Action onClick={addNetwork} large>Add Robinhood Chain to wallet</Action>{netMsg ? <p className="mt-3 font-mono text-xs text-zinc-400">{netMsg}</p> : null}</div><div className="mt-8 space-y-4">{steps.map(([t, body]) => <div key={t} className="rounded-2xl border border-[#f5a623]/15 bg-black/25 p-5"><SectionLabel>{t}</SectionLabel><p className="mt-3 text-sm leading-6 text-zinc-300">{body}</p></div>)}</div><div className="mt-8"><SectionLabel>Token contracts</SectionLabel><div className="mt-3 space-y-2">{cas.map(([label, addr]) => isZeroAddress(addr) ? null : <button key={label} onClick={() => copy(addr, label)} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#f5a623]/15 bg-black/25 px-4 py-3 text-left hover:border-[#f5a623]/40"><span className="text-sm text-zinc-300">{label}</span><span className="flex items-center gap-2 font-mono text-xs text-zinc-500">{short(addr)}{copied === label ? <Check className="h-3 w-3 text-[#22c55e]" /> : <Copy className="h-3 w-3" />}</span></button>)}</div></div><p className="mt-8 text-xs leading-5 text-zinc-600">Bento is unaudited. Only deposit what you can afford to lose. Proof of reserves is on-chain, see <Link href="/reserves" className="text-zinc-500 hover:text-[#f5a623]">Reserves</Link>.</p></Panel></section>;
+}
+
+export function HowItWorksPage() {
+  const faq: [string, string][] = [
+    ["Which type should I pick?", "If you want a claim on real reserves you can redeem for the underlying tokens, use a 1:1 backed box. If you want exposure to assets that have no DEX liquidity on Robinhood Chain, synthetic boxes cover a much wider menu once they launch."],
+    ["Do synthetic boxes hold the stocks?", "No. A synthetic box holds ETH collateral and tracks component prices through Chainlink feeds. You own exposure to the price, not the underlying tokens."],
+    ["What happens if a price feed pauses?", "For synthetic boxes, mint and redeem halt until the feed resumes. That is a safety measure: the protocol will not price the box on stale data."],
+    ["Can I redeem a synthetic box for stocks?", "No. Synthetic boxes mint and redeem in ETH at oracle NAV. Only 1:1 backed boxes support delivery of the underlying tokenized stocks."],
+    ["What is a mixed box?", "A planned future type where some components are held 1:1 in the vault and the rest are tracked synthetically. Not live yet."],
+    ["Is any of this audited?", "No. Bento is unaudited. Proof of reserves for backed boxes is verifiable on-chain, but that is not a substitute for an audit. Only deposit what you can afford to lose."],
+  ];
+  return <section className="mx-auto w-full max-w-4xl space-y-6">
+    <Panel className="p-7 sm:p-10">
+      <SectionLabel>Box types</SectionLabel>
+      <h1 className="mt-2 text-4xl font-black text-white">How boxes work</h1>
+      <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-400">Every Bento box is a token that tracks a basket of assets. There are two ways a box can do that, and the difference matters for what you actually own. A third type combining both is planned.</p>
+      <div className="mt-8 grid gap-5 md:grid-cols-2">
+        <div className="rounded-2xl border border-[#22c55e]/20 bg-black/25 p-6">
+          <BoxTypeBadge type="backed" />
+          <h2 className="mt-4 text-xl font-semibold text-white">1:1 Backed</h2>
+          <p className="mt-3 text-sm leading-6 text-zinc-400">The box vault holds the actual tokenized stocks on Robinhood Chain. When you mint, your ETH is swapped on a DEX into the underlying components and deposited into the vault. When you redeem, you get ETH from selling those reserves, or the tokens themselves delivered to your wallet.</p>
+          <ul className="mt-4 space-y-2 text-sm leading-6 text-zinc-400">
+            <li><span className="text-zinc-200">You own:</span> a claim on real reserves, verifiable on-chain.</li>
+            <li><span className="text-zinc-200">Trust model:</span> proof of reserves. The vault balance is public and must cover box supply.</li>
+            <li><span className="text-zinc-200">Limits:</span> each component needs both a Chainlink feed and DEX liquidity, max 10 components per box. That keeps the menu narrow.</li>
+          </ul>
+          <p className="mt-4 font-mono text-xs text-zinc-500">Current boxes: MAG7, AI3</p>
+        </div>
+        <div className="rounded-2xl border border-[#818cf8]/20 bg-black/25 p-6">
+          <BoxTypeBadge type="synthetic" />
+          <h2 className="mt-4 text-xl font-semibold text-white">Synthetic <span className="font-mono text-xs font-normal uppercase tracking-[0.18em] text-zinc-500">coming soon</span></h2>
+          <p className="mt-3 text-sm leading-6 text-zinc-400">The box tracks component prices through Chainlink oracles only. No underlying stocks are held; the vault holds ETH as collateral. You mint with ETH and redeem for ETH at the oracle-priced NAV. You get the price exposure, not ownership of the assets.</p>
+          <ul className="mt-4 space-y-2 text-sm leading-6 text-zinc-400">
+            <li><span className="text-zinc-200">You own:</span> an ETH-collateralized claim that tracks the basket price.</li>
+            <li><span className="text-zinc-200">Trust model:</span> oracle integrity plus a collateral floor in the vault. If feeds pause, mint and redeem halt for safety.</li>
+            <li><span className="text-zinc-200">Limits:</span> any feed-listed asset works, no DEX liquidity needed, unlimited components. Wide menu, but nothing to take delivery of.</li>
+          </ul>
+          <p className="mt-4 font-mono text-xs text-zinc-500">No synthetic boxes live yet</p>
+        </div>
+      </div>
+      <div className="mt-5 rounded-2xl border border-[#f59e0b]/20 bg-black/25 p-6">
+        <BoxTypeBadge type="mixed" />
+        <h2 className="mt-4 text-xl font-semibold text-white">Mixed <span className="font-mono text-xs font-normal uppercase tracking-[0.18em] text-zinc-500">future</span></h2>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">Some components held 1:1 in the vault, others tracked synthetically. Useful when part of a basket has deep liquidity on-chain and part does not. Planned, not built.</p>
+      </div>
+    </Panel>
+    <Panel className="p-7 sm:p-10">
+      <SectionLabel>Tradeoffs, honestly</SectionLabel>
+      <h2 className="mt-2 text-2xl font-semibold text-white">What you give up either way</h2>
+      <div className="mt-5 space-y-4 text-sm leading-7 text-zinc-400">
+        <p><span className="font-semibold text-zinc-200">1:1 backed</span> gives you redeemability against real reserves: even if every oracle went dark, the tokens are in the vault and yours to claim. The cost is a narrow menu. Every component needs a live feed and enough DEX liquidity to mint and redeem without heavy slippage, and boxes cap out at 10 components. Thin pools also mean price impact on larger sizes.</p>
+        <p><span className="font-semibold text-zinc-200">Synthetic</span> flips that. Any asset with a feed can go in a box, baskets can be as broad as an index, and there is no slippage from DEX routing. The cost is that you are trusting the oracle to price your position and the ETH collateral to cover it. You track the price of the basket; you never own the assets. A paused feed freezes mint and redeem until it resumes.</p>
+        <p>Neither type is strictly better. Backed boxes are for people who want reserves they can point to. Synthetic boxes are for people who want breadth and accept oracle risk to get it.</p>
+      </div>
+    </Panel>
+    <Panel className="p-7 sm:p-10">
+      <SectionLabel>Mint and redeem</SectionLabel>
+      <h2 className="mt-2 text-2xl font-semibold text-white">Mechanics by type</h2>
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <div className="rounded-2xl border border-[#f5a623]/15 bg-black/25 p-5">
+          <SectionLabel>1:1 backed mint</SectionLabel>
+          <p className="mt-3 text-sm leading-6 text-zinc-300">Send ETH. The protocol takes its fee, splits the rest by component weights, buys each tokenized stock on the DEX, and deposits them in the vault. You receive box tokens if all slippage checks pass.</p>
+        </div>
+        <div className="rounded-2xl border border-[#f5a623]/15 bg-black/25 p-5">
+          <SectionLabel>1:1 backed redeem</SectionLabel>
+          <p className="mt-3 text-sm leading-6 text-zinc-300">Burn box tokens. Choose ETH (reserves are sold back through the DEX) or direct delivery of your share of the underlying tokenized stocks.</p>
+        </div>
+        <div className="rounded-2xl border border-[#f5a623]/15 bg-black/25 p-5">
+          <SectionLabel>Synthetic mint</SectionLabel>
+          <p className="mt-3 text-sm leading-6 text-zinc-300">Send ETH. The oracle prices the basket, you receive box tokens at that NAV, and your ETH stays in the vault as collateral. No swaps, no slippage.</p>
+        </div>
+        <div className="rounded-2xl border border-[#f5a623]/15 bg-black/25 p-5">
+          <SectionLabel>Synthetic redeem</SectionLabel>
+          <p className="mt-3 text-sm leading-6 text-zinc-300">Burn box tokens, receive ETH from the vault at the current oracle NAV. If any component feed is paused, redeem waits until it resumes.</p>
+        </div>
+      </div>
+    </Panel>
+    <Panel className="p-7 sm:p-10">
+      <SectionLabel>FAQ</SectionLabel>
+      <h2 className="mt-2 text-2xl font-semibold text-white">Common questions</h2>
+      <div className="mt-5 grid gap-4 md:grid-cols-2">{faq.map(([q, a]) => <div key={q} className="rounded-2xl border border-[#f5a623]/15 bg-black/25 p-5"><SectionLabel>{q}</SectionLabel><p className="mt-3 text-sm leading-6 text-zinc-300">{a}</p></div>)}</div>
+      <p className="mt-8 text-xs leading-5 text-zinc-600">Proof of reserves for backed boxes is on-chain, see <Link href="/reserves" className="text-zinc-500 hover:text-[#f5a623]">Reserves</Link>. New to the app? Start with the <Link href="/guide" className="text-zinc-500 hover:text-[#f5a623]">Guide</Link>.</p>
+    </Panel>
+  </section>;
 }
 
 function InfoPage({ title, label, rows }: { title: string; label: string; rows: [string, string][] }) { return <Panel><SectionLabel>{label}</SectionLabel><h1 className="mt-2 text-4xl font-black text-white">{title}</h1><div className="mt-6 grid gap-4 md:grid-cols-2">{rows.map(([q, a]) => <div key={q} className="rounded-2xl border border-[#f5a623]/15 bg-black/25 p-5"><SectionLabel>{q}</SectionLabel><p className="mt-3 text-sm leading-6 text-zinc-300">{a}</p></div>)}</div></Panel>; }

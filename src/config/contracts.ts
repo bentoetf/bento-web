@@ -39,6 +39,8 @@ export type BoxComponent = {
   thinPoolWarning: boolean;
 };
 
+export type BoxType = "backed" | "synthetic" | "mixed";
+
 export type BoxInfo = {
   id: bigint;
   name: string;
@@ -49,6 +51,7 @@ export type BoxInfo = {
   art: string;
   thumb: string;
   componentSummary: string;
+  boxType: BoxType;
   components: readonly BoxComponent[];
 };
 
@@ -63,6 +66,7 @@ export const BOXES: readonly BoxInfo[] = [
     art: "/boxes/mag7-512.png",
     thumb: "/boxes/mag7-128.png",
     componentSummary: "NVDA · AAPL · MSFT · GOOGL · AMZN · META · TSLA",
+    boxType: "backed",
     components: [
       { symbol: "NVDA", name: "NVIDIA", token: "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC" as Address, feed: "0x379EC4f7C378F34a1B47E4F3cbeBCbAC3E8E9F15" as Address, weightBps: 1428n, thinPoolWarning: false },
       { symbol: "AAPL", name: "Apple", token: "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9" as Address, feed: "0x6B22A786bAa607d76728168703a39Ea9C99f2cD0" as Address, weightBps: 1428n, thinPoolWarning: false },
@@ -83,6 +87,7 @@ export const BOXES: readonly BoxInfo[] = [
     art: "/boxes/ai3-512.png",
     thumb: "/boxes/ai3-128.png",
     componentSummary: "NVDA · AMD · MU",
+    boxType: "backed",
     components: [
       { symbol: "NVDA", name: "NVIDIA", token: "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC" as Address, feed: "0x379EC4f7C378F34a1B47E4F3cbeBCbAC3E8E9F15" as Address, weightBps: 3333n, thinPoolWarning: false },
       { symbol: "AMD", name: "AMD", token: "0x86923f96303D656E4aa86D9d42D1e57ad2023fdC" as Address, feed: "0x943A29E7ae51A4798823ca9eEd2ed533B2A22C72" as Address, weightBps: 3333n, thinPoolWarning: false },
