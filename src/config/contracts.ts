@@ -27,6 +27,43 @@ export const contracts = {
   perTxMintCapWei: 2_000_000_000_000_000_000n,
 } as const;
 
+export type BoxInfo = {
+  id: bigint;
+  name: string;
+  symbol: string;
+  description: string;
+  token: Address;
+  zapper: Address;
+  art: string;
+  thumb: string;
+  componentSummary: string;
+};
+
+export const BOXES: readonly BoxInfo[] = [
+  {
+    id: 1n,
+    name: "MAG7 Box",
+    symbol: "MAG7",
+    description: "Equal-weight basket of seven tokenized equities with on-chain reserve accounting.",
+    token: (process.env.NEXT_PUBLIC_MAG7_BOX_TOKEN_ADDRESS || "0xA4d595f7BECafAAFD3FD279776551D88AD4B26e5") as Address,
+    zapper: (process.env.NEXT_PUBLIC_USDG_ZAPPER_ADDRESS || "0x720a5FE26B63498B4b9fD3659167FF001c8BA633") as Address,
+    art: "/boxes/mag7-512.png",
+    thumb: "/boxes/mag7-128.png",
+    componentSummary: "NVDA · AAPL · MSFT · GOOGL · AMZN · META · TSLA",
+  },
+  {
+    id: 2n,
+    name: "AI Bento Box",
+    symbol: "AI3",
+    description: "Equal-weight basket of three tokenized AI equities with on-chain reserve accounting.",
+    token: (process.env.NEXT_PUBLIC_AI3_BOX_TOKEN_ADDRESS || "0xa98AC72547c656520BD2DaD3C38F619e7EC21BB2") as Address,
+    zapper: (process.env.NEXT_PUBLIC_AI3_ZAPPER_ADDRESS || "0xC41c6513901530BCd58CF6404777A4AC0fbD05ff") as Address,
+    art: "/boxes/ai3-512.png",
+    thumb: "/boxes/ai3-128.png",
+    componentSummary: "NVDA · AMD · MU",
+  },
+] as const;
+
 export const ETH_USD_FEED = "0x78F3556b67E17Df817D51Ef5a990cDaF09E8d3A9" as Address;
 export const USDG_ADDRESS = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168" as Address;
 export const USDG_DECIMALS = 6;
