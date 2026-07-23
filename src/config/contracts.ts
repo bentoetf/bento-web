@@ -41,11 +41,16 @@ export type BoxComponent = {
 
 export type BoxType = "backed" | "synthetic" | "mixed";
 
+// Engine boxes are 1:1 BoxEngine boxes; synthetic boxes are standalone SyntheticBox ERC20 vaults.
+export type BoxKind = "engine" | "synthetic";
+
 export type BoxInfo = {
   id: bigint;
+  kind: BoxKind;
   name: string;
   symbol: string;
   description: string;
+  // For engine boxes this is the box ERC20 token; for synthetic boxes it is the SyntheticBox vault itself (the vault IS the ERC20).
   token: Address;
   zapper: Address;
   art: string;
@@ -55,9 +60,40 @@ export type BoxInfo = {
   components: readonly BoxComponent[];
 };
 
+// Centralized synthetic box addresses. Swapping a redeployed box is a one-line change here
+// (env override wins so a redeploy needs no code change at all).
+export const SYNTHETIC_BOX_ADDRESSES = {
+  factory: (process.env.NEXT_PUBLIC_BOX_FACTORY_ADDRESS || "0x43A996e185eC15538b20ea0e3C4c68aEe6Cfe79a") as Address,
+  SEMI6: (process.env.NEXT_PUBLIC_SEMI6_ADDRESS || "0xD1fb21D214C249a18DcAaE6d1acA84A4b2Ec8c33") as Address,
+  CRYPTOEQ: (process.env.NEXT_PUBLIC_CRYPTOEQ_ADDRESS || "0x7f1a855f22733db560f4E06d5Fb3Cc0590D26550") as Address,
+  SPYQQQ: (process.env.NEXT_PUBLIC_SPYQQQ_ADDRESS || "0xa76aB5F20a825647Ec3967822Cef1D018D5C0B1D") as Address,
+} as const;
+
+// Synthetic boxes hold ETH collateral only; "token" here is the feed proxy used purely for
+// per-component price display, "weightBps" is the box weight. No underlying token is held.
+const SYNTH_FEEDS = {
+  NVDA: "0x379EC4f7C378F34a1B47E4F3cbeBCbAC3E8E9F15",
+  AMD: "0x943A29E7ae51A4798823ca9eEd2ed533B2A22C72",
+  MU: "0x425EEFdCf05ed6526C3cE61Af99429A228a6d596",
+  TSM: "0x874cF94aa8eC88Fd9560094dD065f2fB3E41Fc2F",
+  INTC: "0x3f390C5C24628Ac7C489515402235FeAD71D1913",
+  ASML: "0xB4106147E8cce40b7d46124090d373A71b70f87D",
+  COIN: "0xA3a468A452940B7D6b69991207B508c609a98Ef2",
+  MSTR: "0x396118bdFB181e6240E74D243F266B061c0edc3D",
+  CRCL: "0x6652eDf64bA3731C4F2D3ce821A0Fb1f1f6b482a",
+  SPY: "0x319724394D3A0e3669269846abE664Cd621f9f6A",
+  QQQ: "0x80901d846d5D7B030F26B480776EE3b29374C2ae",
+} as const;
+
+const ZERO = "0x0000000000000000000000000000000000000000" as Address;
+function synthComponent(symbol: string, name: string, weightBps: bigint): BoxComponent {
+  return { symbol, name, token: ZERO, feed: SYNTH_FEEDS[symbol as keyof typeof SYNTH_FEEDS] as Address, weightBps, thinPoolWarning: false };
+}
+
 export const BOXES: readonly BoxInfo[] = [
   {
     id: 1n,
+    kind: "engine",
     name: "MAG7 Bento Box",
     symbol: "MAG7",
     description: "Equal-weight basket of seven tokenized equities with on-chain reserve accounting.",
@@ -79,6 +115,7 @@ export const BOXES: readonly BoxInfo[] = [
   },
   {
     id: 2n,
+    kind: "engine",
     name: "AI3 Bento Box",
     symbol: "AI3",
     description: "Equal-weight basket of three tokenized AI equities with on-chain reserve accounting.",
@@ -94,7 +131,67 @@ export const BOXES: readonly BoxInfo[] = [
       { symbol: "MU", name: "Micron", token: "0xfF080c8ce2E5feadaCa0Da81314Ae59D232d4afD" as Address, feed: "0x425EEFdCf05ed6526C3cE61Af99429A228a6d596" as Address, weightBps: 3334n, thinPoolWarning: false },
     ],
   },
+  {
+    id: 3n,
+    kind: "synthetic",
+    name: "Semiconductor Six",
+    symbol: "SEMI6",
+    description: "Synthetic equal-weight basket of six semiconductor names, ETH-collateralized and oracle-priced.",
+    token: SYNTHETIC_BOX_ADDRESSES.SEMI6,
+    zapper: PLACEHOLDER_ADDRESS,
+    art: "/boxes/synthetic-512.svg",
+    thumb: "/boxes/synthetic-128.svg",
+    componentSummary: "NVDA · AMD · MU · TSM · INTC · ASML",
+    boxType: "synthetic",
+    components: [
+      synthComponent("NVDA", "NVIDIA", 1667n),
+      synthComponent("AMD", "AMD", 1667n),
+      synthComponent("MU", "Micron", 1667n),
+      synthComponent("TSM", "TSMC", 1667n),
+      synthComponent("INTC", "Intel", 1666n),
+      synthComponent("ASML", "ASML", 1666n),
+    ],
+  },
+  {
+    id: 4n,
+    kind: "synthetic",
+    name: "Crypto Equities",
+    symbol: "CRYPTOEQ",
+    description: "Synthetic equal-weight basket of crypto-linked equities, ETH-collateralized and oracle-priced.",
+    token: SYNTHETIC_BOX_ADDRESSES.CRYPTOEQ,
+    zapper: PLACEHOLDER_ADDRESS,
+    art: "/boxes/synthetic-512.svg",
+    thumb: "/boxes/synthetic-128.svg",
+    componentSummary: "COIN · MSTR · CRCL",
+    boxType: "synthetic",
+    components: [
+      synthComponent("COIN", "Coinbase", 3333n),
+      synthComponent("MSTR", "MicroStrategy", 3333n),
+      synthComponent("CRCL", "Circle", 3334n),
+    ],
+  },
+  {
+    id: 5n,
+    kind: "synthetic",
+    name: "SPY QQQ 50 50",
+    symbol: "SPYQQQ",
+    description: "Synthetic 50/50 blend of the SPY and QQQ index proxies, ETH-collateralized and oracle-priced.",
+    token: SYNTHETIC_BOX_ADDRESSES.SPYQQQ,
+    zapper: PLACEHOLDER_ADDRESS,
+    art: "/boxes/synthetic-512.svg",
+    thumb: "/boxes/synthetic-128.svg",
+    componentSummary: "SPY · QQQ",
+    boxType: "synthetic",
+    components: [
+      synthComponent("SPY", "SPY 500", 5000n),
+      synthComponent("QQQ", "Nasdaq 100", 5000n),
+    ],
+  },
 ] as const;
+
+export function isSynthetic(box: BoxInfo): boolean {
+  return box.kind === "synthetic";
+}
 
 export function boxBySymbol(symbol?: string | null): BoxInfo {
   const match = symbol ? BOXES.find((b) => b.symbol.toLowerCase() === symbol.toLowerCase()) : undefined;
@@ -342,6 +439,36 @@ export const zapperAbi = [
     ],
     outputs: [{ name: "boxOut", type: "uint256" }],
   },
+] as const;
+
+// SyntheticBox: the vault IS the ERC20 share token. Mint is payable mint() with ETH,
+// redeem burns shares for ETH, NAV via navPerShare() (8 decimals, genesis 1e10 = $100).
+export const syntheticBoxAbi = [
+  { type: "function", name: "GENESIS_BOX_USD", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
+  { type: "function", name: "navPerShare", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
+  { type: "function", name: "ethUsdPrice", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
+  { type: "function", name: "totalCollateral", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
+  { type: "function", name: "accruedFees", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
+  { type: "function", name: "mintFeeBps", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
+  { type: "function", name: "redeemFeeBps", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
+  { type: "function", name: "paused", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "bool" }] },
+  { type: "function", name: "componentCount", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
+  {
+    type: "function", name: "component", stateMutability: "view", inputs: [{ name: "i", type: "uint256" }],
+    outputs: [{ name: "adapter", type: "address" }, { name: "weightBps", type: "uint256" }, { name: "basePrice", type: "uint256" }],
+  },
+  {
+    type: "function", name: "previewMint", stateMutability: "view", inputs: [{ name: "ethIn", type: "uint256" }],
+    outputs: [{ name: "sharesOut", type: "uint256" }, { name: "fee", type: "uint256" }],
+  },
+  {
+    type: "function", name: "previewRedeem", stateMutability: "view", inputs: [{ name: "shares", type: "uint256" }],
+    outputs: [{ name: "ethOut", type: "uint256" }, { name: "fee", type: "uint256" }],
+  },
+  { type: "function", name: "mint", stateMutability: "payable", inputs: [], outputs: [{ name: "sharesOut", type: "uint256" }] },
+  { type: "function", name: "redeem", stateMutability: "nonpayable", inputs: [{ name: "shares", type: "uint256" }], outputs: [{ name: "ethOut", type: "uint256" }] },
+  { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] },
+  { type: "function", name: "totalSupply", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
 ] as const;
 
 export function hasZapperAddress() {

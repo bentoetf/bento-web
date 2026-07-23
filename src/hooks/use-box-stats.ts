@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePublicClient, useReadContract } from "wagmi";
-import { boxEngineAbi, contracts, feedAbi, robinhood, type BoxInfo } from "@/config/contracts";
+import { boxEngineAbi, contracts, feedAbi, robinhood, syntheticBoxAbi, type BoxInfo } from "@/config/contracts";
 
 type Round = { roundId: bigint; answer: bigint; updatedAt: bigint };
 
@@ -225,8 +225,16 @@ export function formatChangePercent(change: number | null | undefined): string {
 /// so a box with zero supply is worth exactly that until reserves exist. Switches to the
 /// on-chain NAV automatically once navUsdPerBox returns a nonzero value.
 export function useDisplayNav(box: BoxInfo, enabled: boolean): bigint | undefined {
-  const navRead = useReadContract({ address: contracts.boxEngine, abi: boxEngineAbi, functionName: "navUsdPerBox", args: [box.id], query: { enabled } });
-  const genesisRead = useReadContract({ address: contracts.boxEngine, abi: boxEngineAbi, functionName: "GENESIS_BOX_USD", query: { enabled } });
+  const synthetic = box.kind === "synthetic";
+  // Synthetic NAV is 8-decimal USD from the vault; scale to 1e18 USD to match the engine display path.
+  const synthNavRead = useReadContract({ address: box.token, abi: syntheticBoxAbi, functionName: "navPerShare", query: { enabled: enabled && synthetic } });
+  const navRead = useReadContract({ address: contracts.boxEngine, abi: boxEngineAbi, functionName: "navUsdPerBox", args: [box.id], query: { enabled: enabled && !synthetic } });
+  const genesisRead = useReadContract({ address: contracts.boxEngine, abi: boxEngineAbi, functionName: "GENESIS_BOX_USD", query: { enabled: enabled && !synthetic } });
+  if (synthetic) {
+    const synthNav = synthNavRead.data as bigint | undefined;
+    // navPerShare is 8 decimals ($100 = 1e10); usdFromNav / formatUsd1e18 expect 1e18 USD.
+    return synthNav === undefined ? undefined : synthNav * 10n ** 10n;
+  }
   const nav = navRead.data as bigint | undefined;
   if (nav !== undefined && nav > 0n) return nav;
   const genesis = genesisRead.data as bigint | undefined;

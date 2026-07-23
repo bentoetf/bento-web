@@ -7,8 +7,9 @@ import { AlertTriangle, ArrowDownRight, ArrowUpRight, Check, ChevronDown, Copy, 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { decodeFunctionResult, encodeFunctionData, formatUnits, parseEther, parseUnits, type Address } from "viem";
 import { useAccount, useBalance, useConnect, useDisconnect, usePublicClient, useReadContract, useReadContracts, useWriteContract } from "wagmi";
-import { adapterAbi, boxEngineAbi, BOXES, boxBySymbol, contracts, erc20Abi, ETH_USD_FEED, feedAbi, hasBentoAddresses, hasDeployAddresses, hasZapperAddress, PLACEHOLDER_ADDRESS, robinhood, USDG_ADDRESS, USDG_DECIMALS, zapperAbi, type BoxInfo } from "@/config/contracts";
+import { adapterAbi, boxEngineAbi, BOXES, boxBySymbol, contracts, erc20Abi, ETH_USD_FEED, feedAbi, hasBentoAddresses, hasDeployAddresses, hasZapperAddress, isSynthetic, PLACEHOLDER_ADDRESS, robinhood, syntheticBoxAbi, USDG_ADDRESS, USDG_DECIMALS, zapperAbi, type BoxInfo } from "@/config/contracts";
 import { formatChangePercent, useBox24hChange, useBoxNavSeries, useDisplayNav } from "@/hooks/use-box-stats";
+import { formatNav8, useSyntheticData } from "@/hooks/use-synthetic-box";
 
 type BoxData = readonly [Address, Address, number, number, bigint, boolean, boolean, string];
 type BackingData = readonly [readonly Address[], readonly bigint[], readonly bigint[], readonly bigint[]];
@@ -281,11 +282,56 @@ function BoxTypeBadge({ type }: { type: keyof typeof BOX_TYPE_STYLES }) {
   return <Link href="/how-it-works" onClick={(e) => e.stopPropagation()} title="How boxes work" className={`inline-flex rounded-full border px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] transition hover:brightness-125 ${s.className}`}>{s.label}</Link>;
 }
 function ProofBadge() { return <Link href="/reserves" className="inline-flex items-center gap-2 rounded-full border border-[#22c55e]/25 bg-[#22c55e]/10 px-3 py-2 text-xs font-semibold text-[#22c55e]"><Check className="h-3.5 w-3.5" /> <span className="font-mono uppercase tracking-[0.16em]">Proof of reserves</span><span className="text-zinc-300">100% backed by on-chain reserves</span></Link>; }
+function SyntheticProofBadge() { return <Link href="/reserves" className="inline-flex items-center gap-2 rounded-full border border-[#818cf8]/25 bg-[#818cf8]/10 px-3 py-2 text-xs font-semibold text-[#818cf8]"><Info className="h-3.5 w-3.5" /> <span className="font-mono uppercase tracking-[0.16em]">Synthetic</span><span className="text-zinc-300">ETH-collateralized, oracle-priced NAV</span></Link>; }
 function FormInput({ label, value, onChange, suffix, large = false }: { label: string; value: string; onChange: (v: string) => void; suffix: string; large?: boolean }) { return <label className="block"><SectionLabel>{label}</SectionLabel><div className="mt-2 flex rounded-2xl border border-[#f5a623]/20 bg-black/45"><input className={`min-w-0 flex-1 bg-transparent px-4 py-4 font-mono font-black text-zinc-100 outline-none tabular-nums ${large ? "text-5xl sm:text-7xl" : "text-lg"}`} value={value} onChange={(e) => onChange(e.target.value)} inputMode="decimal" /><span className="px-4 py-4 font-mono text-xs uppercase tracking-[0.18em] text-zinc-500">{suffix}</span></div></label>; }
 function Action({ children, onClick, disabled, variant = "filled", large = false }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; variant?: "filled" | "outline"; large?: boolean }) { return <button onClick={onClick} disabled={disabled} className={`rounded-2xl px-5 py-3 font-mono text-xs font-black uppercase tracking-[0.18em] disabled:cursor-not-allowed disabled:opacity-40 ${large ? "w-full py-5" : ""} ${variant === "filled" ? "bg-[#f5a623] text-black hover:brightness-110" : "border border-[#f5a623]/45 text-[#f5a623] hover:bg-[#f5a623]/10"}`}>{children}</button>; }
 function Warning({ text }: { text: string }) { return <div className="mt-4 rounded-2xl border border-[#f5a623]/25 bg-[#f5a623]/10 p-3 text-sm text-[#f7c66b]"><AlertTriangle className="mr-2 inline h-4 w-4" />{text}</div>; }
 function DisabledHint() { if (hasDeployAddresses()) return null; return <p className="mt-4 font-mono text-xs uppercase tracking-[0.16em] text-zinc-600">Launching soon: visible for review, disabled until contract addresses are configured.</p>; }
 function Toast({ text }: { text: string }) { return <div className="fixed bottom-4 left-4 right-4 z-20 rounded-2xl border border-[#f5a623]/20 bg-[#10100e] p-4 font-mono text-xs text-zinc-100 sm:left-auto sm:w-[28rem]">{text}</div>; }
+
+// ---------------- Synthetic box panels (SyntheticBox ERC20 vaults) ----------------
+// These read live from the vault: navPerShare (8 dec), previewMint/previewRedeem, totalCollateral,
+// ethUsdPrice. Mint is payable mint() with ETH; redeem burns shares for ETH.
+
+function SyntheticNote() { return <div className="mt-4 rounded-2xl border border-[#818cf8]/25 bg-[#818cf8]/10 p-3 text-sm text-[#c7d2fe]"><Info className="mr-2 inline h-4 w-4" />Synthetic box: the vault holds ETH collateral only, not the underlying stocks. NAV is priced by Chainlink feeds. Mint with ETH, redeem for ETH.</div>; }
+
+function SyntheticMintPanel({ box, onSelect }: { box: BoxInfo; onSelect: (b: BoxInfo) => void }) {
+  const s = useSyntheticData(box);
+  const sharesOut = s.mintPreview?.[0];
+  const fee = s.mintPreview?.[1];
+  return <section className="mx-auto w-full max-w-3xl"><Panel className="p-7 sm:p-10"><div className="flex items-center gap-3"><SectionLabel>Mint {box.symbol}</SectionLabel><BoxTypeBadge type="synthetic" /></div><h1 className="mt-2 text-4xl font-black text-white">Enter ETH</h1><div className="mt-5"><BoxSelector selected={box} onSelect={onSelect} /></div><div className="mt-6"><FormInput label="ETH amount" value={s.ethIn} onChange={s.setEthIn} suffix="ETH" large /></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><StatCard label="NAV per share" value={formatNav8(s.nav)} caption="oracle-priced, genesis $100" emptyChart={false} /><StatCard label={`Protocol fee (${s.mintFeeBps.toString()} bps)`} value={fee !== undefined ? `${formatBig(fee, 18, 6)} ETH` : "—"} emptyChart={false} /></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><StatCard label="Quote shares out" value={sharesOut !== undefined ? `${formatBig(sharesOut)} ${box.symbol}` : "—"} emptyChart={false} /><StatCard label="Your balance" value={s.balance !== undefined ? `${formatBig(s.balance)} ${box.symbol}` : "—"} emptyChart={false} /></div>{s.paused ? <Warning text="Mint is paused for this box." /> : null}<SyntheticNote /><div className="mt-6"><Action onClick={s.submitMint} disabled={!s.isConnected || s.writePending || !!s.paused} large>{s.isConnected ? "Mint with ETH" : "Connect wallet to mint"}</Action></div><SyntheticComponentBreakdown box={box} feedInfo={s.feedInfo} /></Panel>{s.txMessage ? <Toast text={s.txMessage} /> : null}</section>;
+}
+
+function SyntheticRedeemPanel({ box, onSelect }: { box: BoxInfo; onSelect: (b: BoxInfo) => void }) {
+  const s = useSyntheticData(box);
+  const ethOut = s.redeemPreview?.[0];
+  const fee = s.redeemPreview?.[1];
+  return <section className="mx-auto w-full max-w-3xl"><Panel className="p-7 sm:p-10"><div className="flex items-center gap-3"><SectionLabel>Redeem {box.symbol}</SectionLabel><BoxTypeBadge type="synthetic" /></div><h1 className="mt-2 text-4xl font-black text-white">Exit to ETH</h1><div className="mt-5"><BoxSelector selected={box} onSelect={onSelect} /></div><div className="mt-5"><StatCard label="Connected balance" value={s.balance !== undefined ? `${formatBig(s.balance)} ${box.symbol}` : "—"} emptyChart={false} /></div><div className="mt-5"><FormInput label={`${box.symbol} amount`} value={s.redeemShares} onChange={s.setRedeemShares} suffix={box.symbol} large /></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><StatCard label="NAV per share" value={formatNav8(s.nav)} emptyChart={false} /><StatCard label={`Redeem fee (${s.redeemFeeBps.toString()} bps)`} value={fee !== undefined ? `${formatBig(fee, 18, 6)} ETH` : "—"} emptyChart={false} /></div><div className="mt-5"><StatCard label="ETH out" value={ethOut !== undefined ? `${formatBig(ethOut, 18, 6)} ETH` : "—"} emptyChart={false} /></div>{s.redeemFloored ? <Warning text="Pro-rata solvency cap applies: NAV payout exceeds your pro-rata share of vault collateral, so ETH out is floored to the pro-rata amount. The vault never owes more ETH than it holds." /> : null}{s.paused ? <Warning text="Redeem is paused for this box." /> : null}<SyntheticNote /><div className="mt-6"><Action onClick={s.submitRedeem} disabled={!s.isConnected || s.writePending || !!s.paused} large>{s.isConnected ? "Redeem for ETH" : "Connect wallet to redeem"}</Action></div></Panel>{s.txMessage ? <Toast text={s.txMessage} /> : null}</section>;
+}
+
+function SyntheticComponentBreakdown({ box, feedInfo }: { box: BoxInfo; feedInfo: ReturnType<typeof useSyntheticData>["feedInfo"] }) {
+  return <details open className="mt-5 rounded-2xl border border-[#818cf8]/15 bg-black/25 p-4"><summary className="flex cursor-pointer list-none items-center justify-between font-mono text-xs font-bold uppercase tracking-[0.18em] text-[#818cf8]"><span>Basket components (oracle-priced)</span><ChevronDown className="h-4 w-4" /></summary><div className="mt-4 space-y-2 text-sm">{box.components.map((c, i) => { const info = feedInfo[i]; const price = info?.answer !== undefined && info?.decimals !== undefined ? `$${formatBig(info.answer, info.decimals, 2)}` : "—"; return <div key={c.symbol} className="rounded-2xl bg-[#10100e] p-3"><div className="flex justify-between"><span className="font-mono font-semibold text-white">{c.symbol} · {c.name}</span><span className="font-mono text-zinc-500">{(Number(c.weightBps) / 100).toFixed(2)}%</span></div><div className="mt-2 font-mono text-xs text-zinc-400">Feed price: {price} · age {feedAge(info?.updatedAt)}</div></div>; })}</div></details>;
+}
+
+function SyntheticReservesPanel({ box, onSelect }: { box: BoxInfo; onSelect: (b: BoxInfo) => void }) {
+  const s = useSyntheticData(box);
+  const collateralUsd = s.collateral !== undefined && s.ethUsd !== undefined ? (s.collateral * s.ethUsd) / 10n ** 8n : undefined;
+  // supply is 1e18 shares, nav is 1e8 USD/share -> scale to 1e18 USD for formatUsd1e18.
+  const liabUsd1e18 = s.supply !== undefined && s.nav !== undefined ? ((s.supply * s.nav) / 10n ** 18n) * 10n ** 10n : undefined;
+  const solvency = (() => { if (collateralUsd === undefined || liabUsd1e18 === undefined) return undefined; if (liabUsd1e18 === 0n) return "no supply yet"; return `${(Number((collateralUsd * 10000n) / liabUsd1e18) / 100).toFixed(2)}%`; })();
+  return <Panel><div className="flex items-center gap-3"><SectionLabel>Reserves</SectionLabel><BoxTypeBadge type="synthetic" /></div><h1 className="mt-3 text-4xl font-black text-white">{box.symbol} collateral</h1><div className="mt-4"><BoxSelector selected={box} onSelect={onSelect} /></div><p className="mt-3 max-w-3xl text-sm leading-7 text-zinc-400">This is a synthetic box. It does not hold the underlying stocks. The vault holds plain ETH as collateral and prices the basket through Chainlink feeds. Shown below: actual ETH in the vault and the NAV-implied liabilities.</p><div className="mt-6 grid gap-4 md:grid-cols-3"><StatCard label="Vault ETH collateral" value={s.vaultEth !== undefined ? `${formatBig(s.vaultEth, 18, 6)} ETH` : "—"} caption={collateralUsd !== undefined ? formatUsd1e18(collateralUsd) : undefined} emptyChart={false} /><StatCard label="NAV-implied liabilities" value={liabUsd1e18 !== undefined ? formatUsd1e18(liabUsd1e18) : "—"} caption="totalSupply × navPerShare" emptyChart={false} /><StatCard label="Collateral / liabilities" value={solvency ?? "—"} caption="pro-rata floor guarantees ≥ payout" emptyChart={false} /></div><div className="mt-6 grid gap-4 md:grid-cols-3"><StatCard label="NAV per share" value={formatNav8(s.nav)} emptyChart={false} /><StatCard label="Share supply" value={s.supply !== undefined ? `${formatBig(s.supply)} ${box.symbol}` : "—"} emptyChart={false} /><StatCard label="Accrued fee ETH" value={s.vaultEth !== undefined && s.collateral !== undefined ? `${formatBig(s.vaultEth - s.collateral > 0n ? s.vaultEth - s.collateral : 0n, 18, 6)} ETH` : "—"} emptyChart={false} /></div><SyntheticComponentBreakdown box={box} feedInfo={s.feedInfo} /><p className="mt-6 text-xs leading-6 text-zinc-500">Vault address <a href={explorerAddress(box.token)} target="_blank" rel="noreferrer" className="font-mono text-zinc-400 underline decoration-[#818cf8]/30 underline-offset-4">{short(box.token)}</a>. Collateral and NAV are live chain reads; no underlying stock reserves exist for synthetic boxes.</p></Panel>;
+}
+
+function SyntheticPortfolioPanel({ box, onSelect }: { box: BoxInfo; onSelect: (b: BoxInfo) => void }) {
+  const s = useSyntheticData(box);
+  const boxUsd1e18 = s.balance !== undefined && s.nav !== undefined ? ((s.balance * s.nav) / 10n ** 18n) * 10n ** 10n : undefined;
+  const ethUsd1e18 = s.ethBalance !== undefined && s.ethUsd !== undefined ? (s.ethBalance * s.ethUsd) / 10n ** 8n : undefined;
+  if (!s.isConnected) {
+    return <Panel><div className="flex items-center gap-3"><SectionLabel>Portfolio</SectionLabel><BoxTypeBadge type="synthetic" /></div><h1 className="mt-2 text-4xl font-black text-white">Connect to view holdings</h1><p className="mt-3 text-sm text-zinc-400">Connect a wallet to read your ETH and {box.symbol} share balances.</p><div className="mt-5"><WalletPanel /></div></Panel>;
+  }
+  const supplyShare = (() => { if (!s.balance || !s.supply || s.supply === 0n) return undefined; const bps = Number((s.balance * 1000000n) / s.supply) / 10000; return bps >= 0.01 ? `${bps.toFixed(2)}% of all ${box.symbol}` : `<0.01% of all ${box.symbol}`; })();
+  return <section className="space-y-6"><Panel><div className="flex items-center gap-3"><SectionLabel>Portfolio</SectionLabel><BoxTypeBadge type="synthetic" /></div><h1 className="mt-2 text-4xl font-black text-white">Wallet holdings</h1><div className="mt-4"><BoxSelector selected={box} onSelect={onSelect} /></div>{supplyShare ? <p className="mt-3 font-mono text-sm text-[#818cf8]">{supplyShare}</p> : null}<div className="mt-6 overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><thead className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#f5a623]/60"><tr><th className="py-3">Asset</th><th>Type</th><th>Amount</th><th>USD value</th></tr></thead><tbody><HoldingRow name="ETH" kind="native" amount={s.ethBalance !== undefined ? formatBig(s.ethBalance, 18, 6) : "—"} usd={ethUsd1e18 !== undefined ? formatUsd1e18(ethUsd1e18) : "—"} /><HoldingRow name={box.name} kind="synthetic box token" amount={formatBig(s.balance)} usd={boxUsd1e18 !== undefined ? formatUsd1e18(boxUsd1e18) : "—"} /></tbody></table></div><p className="mt-4 text-xs leading-6 text-zinc-500">Synthetic boxes track price exposure only; there are no underlying stock balances to display.</p></Panel></section>;
+}
 
 function useSelectedBox(): [BoxInfo, (box: BoxInfo) => void] {
   const searchParams = useSearchParams();
@@ -312,16 +358,22 @@ export function OverviewPage() {
 function OverviewPageInner() {
   const [selectedBox, selectBox] = useSelectedBox();
   const data = useBentoData(selectedBox);
+  const synthetic = isSynthetic(selectedBox);
+  const liveNav = data.deployed || synthetic;
   const overviewFeeBalance = useBalance({ address: contracts.feeCollector, chainId: robinhood.id, query: { enabled: !isZeroAddress(contracts.feeCollector), staleTime: 0 } });
   const overviewFees = !isZeroAddress(contracts.feeCollector) && overviewFeeBalance.data !== undefined ? `${formatBig(overviewFeeBalance.data.value, 18, 5)} ETH` : undefined;
-  const heroNav = useDisplayNav(selectedBox, data.deployed);
-  const heroChange = useBox24hChange(selectedBox, data.deployed);
-  const heroSeries = useBoxNavSeries(selectedBox, data.deployed);
-  const navValue = data.deployed ? formatUsd1e18(heroNav) : "$—.————";
-  const moveValue = data.deployed ? formatChangePercent(heroChange) : "$—.————";
-  const tvlValue = data.deployed ? formatUsd1e18(data.tvlUsd) : "—";
+  const heroNav = useDisplayNav(selectedBox, liveNav);
+  const heroChange = useBox24hChange(selectedBox, liveNav);
+  const heroSeries = useBoxNavSeries(selectedBox, liveNav);
+  // Synthetic TVL comes from the vault collateral, not the engine backing table.
+  const synthCollateralRead = useReadContract({ address: selectedBox.token, abi: syntheticBoxAbi, functionName: "totalCollateral", query: { enabled: synthetic } });
+  const synthEthUsdRead = useReadContract({ address: selectedBox.token, abi: syntheticBoxAbi, functionName: "ethUsdPrice", query: { enabled: synthetic } });
+  const synthTvl = (() => { if (!synthetic) return undefined; const c = synthCollateralRead.data as bigint | undefined; const e = synthEthUsdRead.data as bigint | undefined; return c !== undefined && e !== undefined ? (c * e) / 10n ** 8n : undefined; })();
+  const navValue = liveNav ? formatUsd1e18(heroNav) : "$—.————";
+  const moveValue = liveNav ? formatChangePercent(heroChange) : "$—.————";
+  const tvlValue = liveNav ? formatUsd1e18(synthetic ? synthTvl : data.tvlUsd) : "—";
   const bentoBurned = (() => { const supply = data.bentoSupplyRead.data as bigint | undefined; if (!data.bentoConfigured || supply === undefined) return undefined; const initial = 1_000_000_000n * 10n ** 18n; return supply < initial ? initial - supply : 0n; })();
-  return <><section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem]"><Panel className="min-h-[33rem] p-7 sm:p-8"><div className="grid h-full gap-8 xl:grid-cols-[17rem_minmax(0,1fr)_minmax(19rem,0.95fr)]"><div className="flex items-start justify-center xl:justify-start"><BoxArt box={selectedBox} /></div><div className="flex flex-col justify-center"><SectionLabel>Featured box</SectionLabel><h1 className="mt-4 text-4xl font-semibold tracking-tight text-white sm:text-6xl">{selectedBox.name}</h1><p className="mt-4 max-w-md text-base leading-7 text-zinc-400">{selectedBox.description}</p><div className="mt-5"><BoxSelector selected={selectedBox} onSelect={selectBox} /></div><div className="mt-6"><ProofBadge /></div></div><div className="flex flex-col justify-center"><SectionLabel>NAV (on-chain)</SectionLabel><div className="mt-3"><Value large dim={!data.deployed}>{navValue}</Value></div>{!data.deployed ? <p className="mt-2 text-sm text-zinc-500">launching soon</p> : null}<p className="mt-2 font-mono text-sm text-zinc-500">24h change: {moveValue}</p><div className="mt-5"><NavSparkline series={heroSeries} change={heroChange} /></div><div className="mt-5 flex gap-3"><Link href={`/mint?box=${selectedBox.symbol}`} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#f5a623] px-6 py-3 text-sm font-semibold text-black hover:brightness-110"><ArrowUpRight className="h-4 w-4" />Mint</Link><Link href={`/redeem?box=${selectedBox.symbol}`} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#f5a623]/45 px-6 py-3 text-sm font-semibold text-[#f5a623] hover:bg-[#f5a623]/10"><ArrowDownRight className="h-4 w-4" />Redeem</Link></div></div></div></Panel><aside className="grid gap-4"><StatCard label={`${selectedBox.symbol} TVL`} value={tvlValue} caption={data.deployed ? "on-chain backing" : "launching soon"} dim={!data.deployed} /><StatCard label="BENTO burned" value={bentoBurned !== undefined ? `${formatBig(bentoBurned, 18, 2)} BENTO` : "—"} caption={bentoBurned !== undefined ? "every mint burns BENTO" : "launching soon"} dim={bentoBurned === undefined} /><StatCard label="Fees collected" value={overviewFees ?? "—"} caption={overviewFees !== undefined ? "ETH awaiting buyback" : "launching soon"} dim={overviewFees === undefined} /></aside></section><section><SectionLabel>Index boxes</SectionLabel><div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{BOXES.map((box) => <BoxCard key={box.symbol} box={box} deployed={data.deployed} selected={selectedBox.symbol === box.symbol} onSelect={() => selectBox(box)} />)}<Panel className="flex min-h-[18rem] items-center justify-center border-dashed"><div className="text-center"><SectionLabel>More boxes soon</SectionLabel><p className="mt-3 text-sm text-zinc-500">New boxes appear here only after real contracts, feeds, and reserves exist.</p></div></Panel></div></section><RoadmapSection /></>;
+  return <><section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem]"><Panel className="min-h-[33rem] p-7 sm:p-8"><div className="grid h-full gap-8 xl:grid-cols-[17rem_minmax(0,1fr)_minmax(19rem,0.95fr)]"><div className="flex items-start justify-center xl:justify-start"><BoxArt box={selectedBox} /></div><div className="flex flex-col justify-center"><SectionLabel>Featured box</SectionLabel><h1 className="mt-4 text-4xl font-semibold tracking-tight text-white sm:text-6xl">{selectedBox.name}</h1><p className="mt-4 max-w-md text-base leading-7 text-zinc-400">{selectedBox.description}</p><div className="mt-5"><BoxSelector selected={selectedBox} onSelect={selectBox} /></div><div className="mt-6">{synthetic ? <SyntheticProofBadge /> : <ProofBadge />}</div></div><div className="flex flex-col justify-center"><SectionLabel>NAV (on-chain)</SectionLabel><div className="mt-3"><Value large dim={!liveNav}>{navValue}</Value></div>{!liveNav ? <p className="mt-2 text-sm text-zinc-500">launching soon</p> : null}<p className="mt-2 font-mono text-sm text-zinc-500">24h change: {moveValue}</p><div className="mt-5"><NavSparkline series={heroSeries} change={heroChange} /></div><div className="mt-5 flex gap-3"><Link href={`/mint?box=${selectedBox.symbol}`} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#f5a623] px-6 py-3 text-sm font-semibold text-black hover:brightness-110"><ArrowUpRight className="h-4 w-4" />Mint</Link><Link href={`/redeem?box=${selectedBox.symbol}`} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#f5a623]/45 px-6 py-3 text-sm font-semibold text-[#f5a623] hover:bg-[#f5a623]/10"><ArrowDownRight className="h-4 w-4" />Redeem</Link></div></div></div></Panel><aside className="grid gap-4"><StatCard label={`${selectedBox.symbol} TVL`} value={tvlValue} caption={liveNav ? (synthetic ? "ETH collateral in vault" : "on-chain backing") : "launching soon"} dim={!liveNav} /><StatCard label="BENTO burned" value={bentoBurned !== undefined ? `${formatBig(bentoBurned, 18, 2)} BENTO` : "—"} caption={bentoBurned !== undefined ? "every mint burns BENTO" : "launching soon"} dim={bentoBurned === undefined} /><StatCard label="Fees collected" value={overviewFees ?? "—"} caption={overviewFees !== undefined ? "ETH awaiting buyback" : "launching soon"} dim={overviewFees === undefined} /></aside></section><section><SectionLabel>Index boxes</SectionLabel><div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{BOXES.map((box) => <BoxCard key={box.symbol} box={box} deployed={data.deployed} selected={selectedBox.symbol === box.symbol} onSelect={() => selectBox(box)} />)}<Panel className="flex min-h-[18rem] items-center justify-center border-dashed"><div className="text-center"><SectionLabel>More boxes soon</SectionLabel><p className="mt-3 text-sm text-zinc-500">New boxes appear here only after real contracts, feeds, and reserves exist.</p></div></Panel></div></section><RoadmapSection /></>;
 }
 
 type RoadmapItem = { title: string; body: string; done?: boolean };
@@ -431,14 +483,25 @@ export function RoadmapPage() {
 }
 
 function BoxCard({ box, deployed, selected = false, onSelect }: { box: BoxInfo; deployed: boolean; selected?: boolean; onSelect?: () => void }) {
-  const displayNav = useDisplayNav(box, deployed);
-  const change24h = useBox24hChange(box, deployed);
-  const backingRead = useReadContract({ address: contracts.boxEngine, abi: boxEngineAbi, functionName: "backingDetailed", args: [box.id], query: { enabled: deployed } });
+  const synthetic = isSynthetic(box);
+  // Synthetic boxes read live from their own vault and do not depend on the engine deploy flag.
+  const liveNav = deployed || synthetic;
+  const displayNav = useDisplayNav(box, liveNav);
+  const change24h = useBox24hChange(box, liveNav);
+  const backingRead = useReadContract({ address: contracts.boxEngine, abi: boxEngineAbi, functionName: "backingDetailed", args: [box.id], query: { enabled: deployed && !synthetic } });
+  const synthCollateralRead = useReadContract({ address: box.token, abi: syntheticBoxAbi, functionName: "totalCollateral", query: { enabled: synthetic } });
+  const synthEthUsdRead = useReadContract({ address: box.token, abi: syntheticBoxAbi, functionName: "ethUsdPrice", query: { enabled: synthetic } });
   const backing = backingRead.data as BackingData | undefined;
-  const tvlUsd = backing?.[3]?.reduce((sum, v) => sum + v, 0n);
-  const nav = deployed ? formatUsd1e18(displayNav) : "$—.————";
-  const move = deployed ? formatChangePercent(change24h) : "—";
-  const tvl = deployed ? formatUsd1e18(tvlUsd) : "—";
+  let tvlUsd = backing?.[3]?.reduce((sum, v) => sum + v, 0n);
+  if (synthetic) {
+    const collateral = synthCollateralRead.data as bigint | undefined;
+    const ethUsd = synthEthUsdRead.data as bigint | undefined;
+    // TVL = ETH collateral * ETH/USD (8 dec), scaled to 1e18 USD.
+    tvlUsd = collateral !== undefined && ethUsd !== undefined ? (collateral * ethUsd) / 10n ** 8n : undefined;
+  }
+  const nav = liveNav ? formatUsd1e18(displayNav) : "$—.————";
+  const move = liveNav ? formatChangePercent(change24h) : "—";
+  const tvl = liveNav ? formatUsd1e18(tvlUsd) : "—";
   return <Panel className={`min-h-[18rem] transition ${onSelect ? "cursor-pointer hover:border-[#f5a623]/40" : ""} ${selected ? "border-[#f5a623]/60 ring-1 ring-[#f5a623]/40" : ""}`}><div role={onSelect ? "button" : undefined} tabIndex={onSelect ? 0 : undefined} onClick={onSelect} onKeyDown={onSelect ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); } } : undefined} className="outline-none"><div className="flex items-start justify-between gap-4"><div className="flex items-center gap-3"><div className="relative h-12 w-12 overflow-hidden rounded-xl bg-black"><Image src={box.thumb} alt={`${box.name} thumbnail`} fill sizes="48px" className="object-cover" loading="lazy" /></div><div><h2 className="text-2xl font-semibold text-white">{box.name}</h2><span className="mt-1 inline-flex items-center gap-2"><span className="inline-flex rounded-full border border-[#f5a623]/20 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-[#f5a623]">{box.symbol}</span><BoxTypeBadge type={box.boxType} /></span></div></div>{selected ? <span className="rounded-full border border-[#f5a623]/40 bg-[#f5a623]/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-[#f5a623]">Selected</span> : null}</div><p className="mt-5 text-sm leading-6 text-zinc-500">{box.description}</p><p className="mt-2 font-mono text-xs text-zinc-600">{box.componentSummary}</p><div className="mt-6 divide-y divide-[#f5a623]/10 border-y border-[#f5a623]/10"><MetricRow label="NAV" value={nav} dim={!deployed} /><MetricRow label="24h change" value={move} dim={!deployed} /><MetricRow label="TVL" value={tvl} dim={!deployed} /></div></div><div className="mt-5 flex gap-3"><Link href={`/mint?box=${box.symbol}`} className="inline-flex items-center gap-2 rounded-2xl bg-[#f5a623] px-4 py-2 text-xs font-semibold text-black hover:brightness-110"><ArrowUpRight className="h-3.5 w-3.5" />Mint</Link><Link href={`/redeem?box=${box.symbol}`} className="inline-flex items-center gap-2 rounded-2xl border border-[#f5a623]/45 px-4 py-2 text-xs font-semibold text-[#f5a623] hover:bg-[#f5a623]/10"><ArrowDownRight className="h-3.5 w-3.5" />Redeem</Link></div></Panel>;
 }
 function MetricRow({ label, value, dim = false }: { label: string; value: string; dim?: boolean }) { return <div className="flex items-center justify-between gap-4 py-3"><SectionLabel>{label}</SectionLabel><span className={`font-mono text-sm font-bold tabular-nums text-zinc-100 ${dim ? "opacity-40" : ""}`}>{value}</span></div>; }
@@ -449,6 +512,10 @@ export function ReservesPage() {
 
 function ReservesPageInner() {
   const [selectedBox, selectBox] = useSelectedBox();
+  return isSynthetic(selectedBox) ? <SyntheticReservesPanel box={selectedBox} onSelect={selectBox} /> : <EngineReservesPanel selectedBox={selectedBox} selectBox={selectBox} />;
+}
+
+function EngineReservesPanel({ selectedBox, selectBox }: { selectedBox: BoxInfo; selectBox: (b: BoxInfo) => void }) {
   const data = useBentoData(selectedBox);
   const sym = selectedBox.symbol;
   const vaultConfigured = !isZeroAddress(contracts.mag7Vault) && selectedBox.id === 1n;
@@ -466,6 +533,10 @@ export function MintPage() {
 
 function MintPageInner() {
   const [selectedBox, selectBox] = useSelectedBox();
+  return isSynthetic(selectedBox) ? <SyntheticMintPanel box={selectedBox} onSelect={selectBox} /> : <EngineMintPanel selectedBox={selectedBox} selectBox={selectBox} />;
+}
+
+function EngineMintPanel({ selectedBox, selectBox }: { selectedBox: BoxInfo; selectBox: (b: BoxInfo) => void }) {
   const data = useBentoData(selectedBox);
   const usingUsdg = data.payAsset === "USDG";
   const overPerTx = (() => { try { return !usingUsdg && data.perTxCap !== undefined && parseEther(data.ethIn || "0") > data.perTxCap; } catch { return false; } })();
@@ -477,7 +548,9 @@ function Breakdown({ title, components, quotes, mins, unit, deployed }: { title:
 
 export function RedeemPage() { return <Suspense><RedeemPageInner /></Suspense>; }
 
-function RedeemPageInner() { const [selectedBox, selectBox] = useSelectedBox(); const data = useBentoData(selectedBox); const sym = selectedBox.symbol; const pendingClaims = data.claimsReads.data?.some((r) => ((r.result as bigint | undefined) ?? 0n) > 0n); return <section className="grid gap-5 lg:grid-cols-2"><Panel muted={!data.deployed}>{pendingClaims ? <Link href="/portfolio" className="mb-5 block rounded-2xl border border-[#f5a623]/20 bg-[#f5a623]/10 p-3 text-sm text-[#f5a623]">You have pending failed-leg claims. Open Portfolio to execute claims.</Link> : null}<SectionLabel>Redeem {sym}</SectionLabel><h1 className="mt-2 text-4xl font-black text-white">Exit route</h1><div className="mt-5"><BoxSelector selected={selectedBox} onSelect={selectBox} /></div><div className="mt-5"><StatCard label="Connected balance" value={data.boxBalanceRead.data ? `${formatBig(data.boxBalanceRead.data as bigint)} ${sym}` : data.deployed ? "—" : SOON} emptyChart={false} /></div><div className="mt-5"><FormInput label={`${sym} amount`} value={data.redeemAmount} onChange={data.setRedeemAmount} suffix={sym} large /></div><div className="mt-5"><FormInput label="Slippage" value={data.slippage} onChange={data.setSlippage} suffix="%" /></div><div className="mt-5 grid gap-4"><StatCard label="Redeem fee" value={data.deployed ? `${formatBig(parseSafeEther(data.redeemAmount) * data.redeemFeeBps / BPS, 18, 6)} ${sym}` : SOON} emptyChart={false} /><StatCard label="ETH quote" value={data.redeemQuote.ethOut ? `${formatBig(data.redeemQuote.ethOut, 18, 6)} ETH` : data.redeemQuote.error || (data.deployed ? "—" : SOON)} emptyChart={false} /><StatCard label="Minimum ETH out" value={data.redeemQuote.minEthOut ? `${formatBig(data.redeemQuote.minEthOut, 18, 6)} ETH` : data.deployed ? "—" : SOON} emptyChart={false} /></div><div className="mt-5 flex flex-wrap gap-3"><Action onClick={data.quoteRedeem} disabled={!data.deployed}>Quote ETH path</Action><Action onClick={data.redeemForEth} disabled={!data.isConnected || data.writePending} variant="outline">Redeem for ETH</Action><Action onClick={data.redeemForStocks} disabled={!data.isConnected || data.writePending} variant="outline">Redeem for stocks</Action></div><DisabledHint /></Panel><Panel muted={!data.deployed}><SectionLabel>Execution guardrails</SectionLabel><Breakdown title="Redeem ETH leg minimums" components={selectedBox.components} quotes={data.redeemQuote.componentQuotes} mins={data.redeemQuote.componentMins} unit="ETH" deployed={data.deployed} /></Panel>{data.txMessage ? <Toast text={data.txMessage} /> : null}</section>; }
+function RedeemPageInner() { const [selectedBox, selectBox] = useSelectedBox(); return isSynthetic(selectedBox) ? <SyntheticRedeemPanel box={selectedBox} onSelect={selectBox} /> : <EngineRedeemPanel selectedBox={selectedBox} selectBox={selectBox} />; }
+
+function EngineRedeemPanel({ selectedBox, selectBox }: { selectedBox: BoxInfo; selectBox: (b: BoxInfo) => void }) { const data = useBentoData(selectedBox); const sym = selectedBox.symbol; const pendingClaims = data.claimsReads.data?.some((r) => ((r.result as bigint | undefined) ?? 0n) > 0n); return <section className="grid gap-5 lg:grid-cols-2"><Panel muted={!data.deployed}>{pendingClaims ? <Link href="/portfolio" className="mb-5 block rounded-2xl border border-[#f5a623]/20 bg-[#f5a623]/10 p-3 text-sm text-[#f5a623]">You have pending failed-leg claims. Open Portfolio to execute claims.</Link> : null}<SectionLabel>Redeem {sym}</SectionLabel><h1 className="mt-2 text-4xl font-black text-white">Exit route</h1><div className="mt-5"><BoxSelector selected={selectedBox} onSelect={selectBox} /></div><div className="mt-5"><StatCard label="Connected balance" value={data.boxBalanceRead.data ? `${formatBig(data.boxBalanceRead.data as bigint)} ${sym}` : data.deployed ? "—" : SOON} emptyChart={false} /></div><div className="mt-5"><FormInput label={`${sym} amount`} value={data.redeemAmount} onChange={data.setRedeemAmount} suffix={sym} large /></div><div className="mt-5"><FormInput label="Slippage" value={data.slippage} onChange={data.setSlippage} suffix="%" /></div><div className="mt-5 grid gap-4"><StatCard label="Redeem fee" value={data.deployed ? `${formatBig(parseSafeEther(data.redeemAmount) * data.redeemFeeBps / BPS, 18, 6)} ${sym}` : SOON} emptyChart={false} /><StatCard label="ETH quote" value={data.redeemQuote.ethOut ? `${formatBig(data.redeemQuote.ethOut, 18, 6)} ETH` : data.redeemQuote.error || (data.deployed ? "—" : SOON)} emptyChart={false} /><StatCard label="Minimum ETH out" value={data.redeemQuote.minEthOut ? `${formatBig(data.redeemQuote.minEthOut, 18, 6)} ETH` : data.deployed ? "—" : SOON} emptyChart={false} /></div><div className="mt-5 flex flex-wrap gap-3"><Action onClick={data.quoteRedeem} disabled={!data.deployed}>Quote ETH path</Action><Action onClick={data.redeemForEth} disabled={!data.isConnected || data.writePending} variant="outline">Redeem for ETH</Action><Action onClick={data.redeemForStocks} disabled={!data.isConnected || data.writePending} variant="outline">Redeem for stocks</Action></div><DisabledHint /></Panel><Panel muted={!data.deployed}><SectionLabel>Execution guardrails</SectionLabel><Breakdown title="Redeem ETH leg minimums" components={selectedBox.components} quotes={data.redeemQuote.componentQuotes} mins={data.redeemQuote.componentMins} unit="ETH" deployed={data.deployed} /></Panel>{data.txMessage ? <Toast text={data.txMessage} /> : null}</section>; }
 
 export function PortfolioPage() {
   return <Suspense><PortfolioPageInner /></Suspense>;
@@ -485,6 +558,10 @@ export function PortfolioPage() {
 
 function PortfolioPageInner() {
   const [selectedBox, selectBox] = useSelectedBox();
+  return isSynthetic(selectedBox) ? <SyntheticPortfolioPanel box={selectedBox} onSelect={selectBox} /> : <EnginePortfolioPanel selectedBox={selectedBox} selectBox={selectBox} />;
+}
+
+function EnginePortfolioPanel({ selectedBox, selectBox }: { selectedBox: BoxInfo; selectBox: (b: BoxInfo) => void }) {
   const data = useBentoData(selectedBox);
   const sym = selectedBox.symbol;
   const ethRound = data.ethFeedReads.data?.[0]?.result as readonly [bigint, bigint, bigint, bigint, bigint] | undefined;
@@ -668,14 +745,14 @@ export function HowItWorksPage() {
         </div>
         <div className="rounded-2xl border border-[#818cf8]/20 bg-black/25 p-6">
           <BoxTypeBadge type="synthetic" />
-          <h2 className="mt-4 text-xl font-semibold text-white">Synthetic <span className="font-mono text-xs font-normal uppercase tracking-[0.18em] text-zinc-500">coming soon</span></h2>
+          <h2 className="mt-4 text-xl font-semibold text-white">Synthetic</h2>
           <p className="mt-3 text-sm leading-6 text-zinc-400">The box tracks component prices through Chainlink oracles only. No underlying stocks are held; the vault holds ETH as collateral. You mint with ETH and redeem for ETH at the oracle-priced NAV. You get the price exposure, not ownership of the assets.</p>
           <ul className="mt-4 space-y-2 text-sm leading-6 text-zinc-400">
             <li><span className="text-zinc-200">You own:</span> an ETH-collateralized claim that tracks the basket price.</li>
             <li><span className="text-zinc-200">Trust model:</span> oracle integrity plus a collateral floor in the vault. If feeds pause, mint and redeem halt for safety.</li>
             <li><span className="text-zinc-200">Limits:</span> any feed-listed asset works, no DEX liquidity needed, unlimited components. Wide menu, but nothing to take delivery of.</li>
           </ul>
-          <p className="mt-4 font-mono text-xs text-zinc-500">No synthetic boxes live yet</p>
+          <p className="mt-4 font-mono text-xs text-zinc-500">Current boxes: SEMI6, CRYPTOEQ, SPYQQQ</p>
         </div>
       </div>
       <div className="mt-5 rounded-2xl border border-[#f59e0b]/20 bg-black/25 p-6">
