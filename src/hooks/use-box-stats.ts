@@ -14,6 +14,10 @@ const EXPONENTIAL_STEPS = [1n, 2n, 4n, 8n, 16n, 32n, 64n, 128n, 256n, 512n, 1024
 const changeCache = new Map<string, number | null>();
 const inflight = new Map<string, Promise<number | null>>();
 
+const SERIES_POINTS = 12;
+const seriesCache = new Map<string, number[] | null>();
+const seriesInflight = new Map<string, Promise<number[] | null>>();
+
 function toRound(result: unknown): Round | undefined {
   const r = result as readonly [bigint, bigint, bigint, bigint, bigint] | undefined;
   if (!r || r[1] <= 0n || r[3] === 0n) return undefined;
@@ -56,6 +60,105 @@ async function priceAgo(client: NonNullable<ReturnType<typeof usePublicClient>>,
     return best.answer;
   }
   return below.answer;
+}
+
+// Locate the round whose updatedAt is closest to (but not after) `target`, walking back from latest.
+// Returns undefined when the feed history does not reach that far back.
+async function roundAtOrBefore(client: NonNullable<ReturnType<typeof usePublicClient>>, feed: `0x${string}`, latest: Round, target: bigint): Promise<Round | undefined> {
+  if (latest.updatedAt <= target) return latest;
+  const probeIds = EXPONENTIAL_STEPS.map((s) => latest.roundId - s).filter((id) => id > 0n);
+  const probes = await fetchRounds(client, feed, probeIds);
+  let below: Round | undefined;
+  for (const p of probes) {
+    if (!p) continue;
+    if (p.updatedAt <= target) { below = p; break; }
+  }
+  return below;
+}
+
+// Build a per-feed price series: sample rounds evenly between the round ~24h ago and the latest,
+// then return (updatedAt, answer) pairs sorted by time.
+async function feedSeries(client: NonNullable<ReturnType<typeof usePublicClient>>, feed: `0x${string}`, latest: Round, target: bigint): Promise<Round[] | undefined> {
+  const start = await roundAtOrBefore(client, feed, latest, target);
+  if (!start) return undefined;
+  const span = latest.roundId - start.roundId;
+  const ids: bigint[] = [];
+  if (span <= BigInt(SERIES_POINTS)) {
+    for (let id = start.roundId; id <= latest.roundId; id++) ids.push(id);
+  } else {
+    for (let k = 0; k < SERIES_POINTS; k++) ids.push(start.roundId + (span * BigInt(k)) / BigInt(SERIES_POINTS - 1));
+  }
+  const rounds = (await fetchRounds(client, feed, ids)).filter((r): r is Round => r !== undefined);
+  if (rounds.length < 2) return undefined;
+  rounds.sort((a, b) => (a.updatedAt < b.updatedAt ? -1 : 1));
+  return rounds;
+}
+
+// Weighted box-level NAV index over the last 24h. Each component series is normalized to its
+// first sample so the result is a relative index; the sparkline only needs the shape.
+async function computeBoxSeries(client: NonNullable<ReturnType<typeof usePublicClient>>, box: BoxInfo): Promise<number[] | null> {
+  try {
+    const latestResults = await client.multicall({
+      contracts: box.components.map((c) => ({ address: c.feed, abi: feedAbi, functionName: "latestRoundData" } as const)),
+      allowFailure: true,
+    });
+    const now = BigInt(Math.floor(Date.now() / 1000));
+    const target = now - DAY_SECONDS;
+    const perFeed: { series: Round[]; weight: number }[] = [];
+    for (let i = 0; i < box.components.length; i++) {
+      const res = latestResults[i];
+      const latest = res.status === "success" ? toRound(res.result) : undefined;
+      if (!latest) continue;
+      const series = await feedSeries(client, box.components[i].feed, latest, target);
+      if (!series) continue;
+      perFeed.push({ series, weight: Number(box.components[i].weightBps) / 10_000 });
+    }
+    const covered = perFeed.reduce((s, f) => s + f.weight, 0);
+    if (covered < 0.5) return null;
+    // Common sample timestamps across the window; per feed take the most recent round at or before t.
+    const points: number[] = [];
+    for (let k = 0; k < SERIES_POINTS; k++) {
+      const t = target + ((now - target) * BigInt(k)) / BigInt(SERIES_POINTS - 1);
+      let value = 0;
+      for (const f of perFeed) {
+        let pick = f.series[0];
+        for (const r of f.series) { if (r.updatedAt <= t) pick = r; else break; }
+        const base = Number(f.series[0].answer);
+        if (base <= 0) continue;
+        value += (Number(pick.answer) / base) * (f.weight / covered);
+      }
+      points.push(value);
+    }
+    return points;
+  } catch {
+    return null;
+  }
+}
+
+/// Relative NAV index series over the last ~24h for the sparkline. Undefined while loading, null when unavailable.
+export function useBoxNavSeries(box: BoxInfo, enabled: boolean): number[] | null | undefined {
+  const client = usePublicClient({ chainId: robinhood.id });
+  const [value, setValue] = useState<number[] | null | undefined>(() => seriesCache.get(box.symbol));
+
+  useEffect(() => {
+    if (!enabled || !client) return;
+    const cached = seriesCache.get(box.symbol);
+    if (cached !== undefined) { setValue(cached); return; }
+    let cancelled = false;
+    let promise = seriesInflight.get(box.symbol);
+    if (!promise) {
+      promise = computeBoxSeries(client, box).then((result) => {
+        seriesCache.set(box.symbol, result);
+        seriesInflight.delete(box.symbol);
+        return result;
+      });
+      seriesInflight.set(box.symbol, promise);
+    }
+    promise.then((result) => { if (!cancelled) setValue(result); });
+    return () => { cancelled = true; };
+  }, [box, client, enabled]);
+
+  return value;
 }
 
 async function computeBoxChange(client: NonNullable<ReturnType<typeof usePublicClient>>, box: BoxInfo): Promise<number | null> {

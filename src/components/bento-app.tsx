@@ -8,7 +8,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { decodeFunctionResult, encodeFunctionData, formatUnits, parseEther, parseUnits, type Address } from "viem";
 import { useAccount, useBalance, useConnect, useDisconnect, usePublicClient, useReadContract, useReadContracts, useWriteContract } from "wagmi";
 import { adapterAbi, boxEngineAbi, BOXES, boxBySymbol, contracts, erc20Abi, ETH_USD_FEED, feedAbi, hasBentoAddresses, hasDeployAddresses, hasZapperAddress, PLACEHOLDER_ADDRESS, robinhood, USDG_ADDRESS, USDG_DECIMALS, zapperAbi, type BoxInfo } from "@/config/contracts";
-import { formatChangePercent, useBox24hChange, useDisplayNav } from "@/hooks/use-box-stats";
+import { formatChangePercent, useBox24hChange, useBoxNavSeries, useDisplayNav } from "@/hooks/use-box-stats";
 
 type BoxData = readonly [Address, Address, number, number, bigint, boolean, boolean, string];
 type BackingData = readonly [readonly Address[], readonly bigint[], readonly bigint[], readonly bigint[]];
@@ -232,6 +232,42 @@ function Panel({ children, className = "", muted = false }: { children: React.Re
 function Value({ children, large = false, tone, dim = false }: { children: React.ReactNode; large?: boolean; tone?: "green" | "red"; dim?: boolean }) { const color = tone === "green" ? "text-[#22c55e]" : tone === "red" ? "text-[#ef4444]" : "text-zinc-100"; return <span className={`font-mono font-black tabular-nums ${large ? "text-5xl sm:text-7xl" : "text-2xl"} ${color} ${dim ? "opacity-40" : ""}`}>{children}</span>; }
 function StatCard({ label, value, caption, dim = false, emptyChart = false }: { label: string; value: string; caption?: string; dim?: boolean; emptyChart?: boolean }) { return <Panel className={`grid min-h-28 items-center gap-4 p-5 ${emptyChart ? "grid-cols-[minmax(0,1fr)_7.5rem]" : ""}`}><div><SectionLabel>{label}</SectionLabel><div className="mt-2"><Value dim={dim}>{value}</Value></div>{caption ? <p className="mt-1 text-xs text-zinc-500">{caption}</p> : null}</div>{emptyChart ? <EmptyChart compact /> : null}</Panel>; }
 function EmptyChart({ compact = false }: { compact?: boolean }) { return <div className={`${compact ? "h-14" : "h-36"} rounded-2xl bg-white/[0.03]`} />; }
+
+// Inline SVG area sparkline for the 24h NAV index. No chart library; series is a relative index.
+function NavSparkline({ series, change }: { series: number[] | null | undefined; change: number | null | undefined }) {
+  if (series === undefined) return <div className="h-36 animate-pulse rounded-2xl bg-white/[0.03]" />;
+  if (series === null || series.length < 2) return null;
+  const w = 320;
+  const h = 120;
+  const pad = 6;
+  const min = Math.min(...series);
+  const max = Math.max(...series);
+  const span = max - min || 1e-9;
+  const pts = series.map((v, i) => {
+    const x = pad + (i / (series.length - 1)) * (w - pad * 2);
+    const y = pad + (1 - (v - min) / span) * (h - pad * 2);
+    return [x, y] as const;
+  });
+  const line = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const area = `${pad},${h - pad} ${line} ${w - pad},${h - pad}`;
+  const color = change !== null && change !== undefined ? (change >= 0 ? "#22c55e" : "#ef4444") : "#f5a623";
+  const gid = `nav-spark-${color.slice(1)}`;
+  return (
+    <div className="h-36 rounded-2xl border border-[#f5a623]/10 bg-black/25 p-3">
+      <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-full w-full" role="img" aria-label="24h NAV chart">
+        <defs>
+          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.28" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <polygon points={area} fill={`url(#${gid})`} />
+        <polyline points={line} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        <circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r="3" fill={color} />
+      </svg>
+    </div>
+  );
+}
 function BoxArt({ box }: { box: BoxInfo }) { return <div className="relative aspect-square w-full max-w-[18rem] overflow-hidden rounded-3xl bg-black"><Image src={box.art} alt={`${box.name} artwork`} fill sizes="(min-width: 1280px) 17rem, 18rem" className="object-cover" priority /></div>; }
 function ProofBadge() { return <Link href="/reserves" className="inline-flex items-center gap-2 rounded-full border border-[#22c55e]/25 bg-[#22c55e]/10 px-3 py-2 text-xs font-semibold text-[#22c55e]"><Check className="h-3.5 w-3.5" /> <span className="font-mono uppercase tracking-[0.16em]">Proof of reserves</span><span className="text-zinc-300">100% backed by on-chain reserves</span></Link>; }
 function FormInput({ label, value, onChange, suffix, large = false }: { label: string; value: string; onChange: (v: string) => void; suffix: string; large?: boolean }) { return <label className="block"><SectionLabel>{label}</SectionLabel><div className="mt-2 flex rounded-2xl border border-[#f5a623]/20 bg-black/45"><input className={`min-w-0 flex-1 bg-transparent px-4 py-4 font-mono font-black text-zinc-100 outline-none tabular-nums ${large ? "text-5xl sm:text-7xl" : "text-lg"}`} value={value} onChange={(e) => onChange(e.target.value)} inputMode="decimal" /><span className="px-4 py-4 font-mono text-xs uppercase tracking-[0.18em] text-zinc-500">{suffix}</span></div></label>; }
@@ -269,11 +305,12 @@ function OverviewPageInner() {
   const overviewFees = !isZeroAddress(contracts.feeCollector) && overviewFeeBalance.data !== undefined ? `${formatBig(overviewFeeBalance.data.value, 18, 5)} ETH` : undefined;
   const heroNav = useDisplayNav(selectedBox, data.deployed);
   const heroChange = useBox24hChange(selectedBox, data.deployed);
+  const heroSeries = useBoxNavSeries(selectedBox, data.deployed);
   const navValue = data.deployed ? formatUsd1e18(heroNav) : "$—.————";
   const moveValue = data.deployed ? formatChangePercent(heroChange) : "$—.————";
   const tvlValue = data.deployed ? formatUsd1e18(data.tvlUsd) : "—";
   const bentoBurned = (() => { const supply = data.bentoSupplyRead.data as bigint | undefined; if (!data.bentoConfigured || supply === undefined) return undefined; const initial = 1_000_000_000n * 10n ** 18n; return supply < initial ? initial - supply : 0n; })();
-  return <><section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem]"><Panel className="min-h-[33rem] p-7 sm:p-8"><div className="grid h-full gap-8 xl:grid-cols-[17rem_minmax(0,1fr)_minmax(19rem,0.95fr)]"><div className="flex items-start justify-center xl:justify-start"><BoxArt box={selectedBox} /></div><div className="flex flex-col justify-center"><SectionLabel>Featured box</SectionLabel><h1 className="mt-4 text-4xl font-semibold tracking-tight text-white sm:text-6xl">{selectedBox.name}</h1><p className="mt-4 max-w-md text-base leading-7 text-zinc-400">{selectedBox.description}</p><div className="mt-5"><BoxSelector selected={selectedBox} onSelect={selectBox} /></div><div className="mt-6"><ProofBadge /></div></div><div className="flex flex-col justify-center"><SectionLabel>NAV (on-chain)</SectionLabel><div className="mt-3"><Value large dim={!data.deployed}>{navValue}</Value></div>{!data.deployed ? <p className="mt-2 text-sm text-zinc-500">launching soon</p> : null}<p className="mt-2 font-mono text-sm text-zinc-500">24h change: {moveValue}</p><div className="mt-5 flex gap-3"><Link href={`/mint?box=${selectedBox.symbol}`} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#f5a623] px-6 py-3 text-sm font-semibold text-black hover:brightness-110"><ArrowUpRight className="h-4 w-4" />Mint</Link><Link href={`/redeem?box=${selectedBox.symbol}`} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#f5a623]/45 px-6 py-3 text-sm font-semibold text-[#f5a623] hover:bg-[#f5a623]/10"><ArrowDownRight className="h-4 w-4" />Redeem</Link></div></div></div></Panel><aside className="grid gap-4"><StatCard label={`${selectedBox.symbol} TVL`} value={tvlValue} caption={data.deployed ? "on-chain backing" : "launching soon"} dim={!data.deployed} /><StatCard label="BENTO burned" value={bentoBurned !== undefined ? `${formatBig(bentoBurned, 18, 2)} BENTO` : "—"} caption={bentoBurned !== undefined ? "every mint burns BENTO" : "launching soon"} dim={bentoBurned === undefined} /><StatCard label="Fees collected" value={overviewFees ?? "—"} caption={overviewFees !== undefined ? "ETH awaiting buyback" : "launching soon"} dim={overviewFees === undefined} /></aside></section><section><SectionLabel>Index boxes</SectionLabel><div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{BOXES.map((box) => <BoxCard key={box.symbol} box={box} deployed={data.deployed} selected={selectedBox.symbol === box.symbol} onSelect={() => selectBox(box)} />)}<Panel className="flex min-h-[18rem] items-center justify-center border-dashed"><div className="text-center"><SectionLabel>More boxes soon</SectionLabel><p className="mt-3 text-sm text-zinc-500">New boxes appear here only after real contracts, feeds, and reserves exist.</p></div></Panel></div></section><RoadmapSection /></>;
+  return <><section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem]"><Panel className="min-h-[33rem] p-7 sm:p-8"><div className="grid h-full gap-8 xl:grid-cols-[17rem_minmax(0,1fr)_minmax(19rem,0.95fr)]"><div className="flex items-start justify-center xl:justify-start"><BoxArt box={selectedBox} /></div><div className="flex flex-col justify-center"><SectionLabel>Featured box</SectionLabel><h1 className="mt-4 text-4xl font-semibold tracking-tight text-white sm:text-6xl">{selectedBox.name}</h1><p className="mt-4 max-w-md text-base leading-7 text-zinc-400">{selectedBox.description}</p><div className="mt-5"><BoxSelector selected={selectedBox} onSelect={selectBox} /></div><div className="mt-6"><ProofBadge /></div></div><div className="flex flex-col justify-center"><SectionLabel>NAV (on-chain)</SectionLabel><div className="mt-3"><Value large dim={!data.deployed}>{navValue}</Value></div>{!data.deployed ? <p className="mt-2 text-sm text-zinc-500">launching soon</p> : null}<p className="mt-2 font-mono text-sm text-zinc-500">24h change: {moveValue}</p><div className="mt-5"><NavSparkline series={heroSeries} change={heroChange} /></div><div className="mt-5 flex gap-3"><Link href={`/mint?box=${selectedBox.symbol}`} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#f5a623] px-6 py-3 text-sm font-semibold text-black hover:brightness-110"><ArrowUpRight className="h-4 w-4" />Mint</Link><Link href={`/redeem?box=${selectedBox.symbol}`} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#f5a623]/45 px-6 py-3 text-sm font-semibold text-[#f5a623] hover:bg-[#f5a623]/10"><ArrowDownRight className="h-4 w-4" />Redeem</Link></div></div></div></Panel><aside className="grid gap-4"><StatCard label={`${selectedBox.symbol} TVL`} value={tvlValue} caption={data.deployed ? "on-chain backing" : "launching soon"} dim={!data.deployed} /><StatCard label="BENTO burned" value={bentoBurned !== undefined ? `${formatBig(bentoBurned, 18, 2)} BENTO` : "—"} caption={bentoBurned !== undefined ? "every mint burns BENTO" : "launching soon"} dim={bentoBurned === undefined} /><StatCard label="Fees collected" value={overviewFees ?? "—"} caption={overviewFees !== undefined ? "ETH awaiting buyback" : "launching soon"} dim={overviewFees === undefined} /></aside></section><section><SectionLabel>Index boxes</SectionLabel><div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{BOXES.map((box) => <BoxCard key={box.symbol} box={box} deployed={data.deployed} selected={selectedBox.symbol === box.symbol} onSelect={() => selectBox(box)} />)}<Panel className="flex min-h-[18rem] items-center justify-center border-dashed"><div className="text-center"><SectionLabel>More boxes soon</SectionLabel><p className="mt-3 text-sm text-zinc-500">New boxes appear here only after real contracts, feeds, and reserves exist.</p></div></Panel></div></section><RoadmapSection /></>;
 }
 
 const ROADMAP_ITEMS: { title: string; body: string; status: string }[] = [
