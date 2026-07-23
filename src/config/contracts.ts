@@ -10,6 +10,9 @@ export const robinhood = defineChain({
   blockExplorers: {
     default: { name: "Robinhood Blockscout", url: "https://robinhoodchain.blockscout.com" },
   },
+  contracts: {
+    multicall3: { address: "0xcA11bde05977b3631167028862bE2a173976CA11" },
+  },
 });
 
 export const PLACEHOLDER_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
@@ -159,6 +162,13 @@ export const MAG7_COMPONENTS = [
 export const boxEngineAbi = [
   {
     type: "function",
+    name: "GENESIS_BOX_USD",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
     name: "navUsdPerBox",
     stateMutability: "view",
     inputs: [{ name: "boxId", type: "uint256" }],
@@ -279,6 +289,19 @@ export const erc20Abi = [
 
 export const feedAbi = [
   { type: "function", name: "decimals", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint8" }] },
+  {
+    type: "function",
+    name: "getRoundData",
+    stateMutability: "view",
+    inputs: [{ name: "_roundId", type: "uint80" }],
+    outputs: [
+      { name: "roundId", type: "uint80" },
+      { name: "answer", type: "int256" },
+      { name: "startedAt", type: "uint256" },
+      { name: "updatedAt", type: "uint256" },
+      { name: "answeredInRound", type: "uint80" },
+    ],
+  },
   {
     type: "function",
     name: "latestRoundData",
