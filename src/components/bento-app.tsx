@@ -393,11 +393,12 @@ const ROADMAP_PHASES: RoadmapPhase[] = [
     ],
   },
   {
-    phase: "Phase 2", title: "Expansion", status: "in progress",
+    phase: "Phase 2", title: "Expansion", status: "live",
     blurb: "A much wider menu. Synthetic boxes track prices through Chainlink feeds with ETH collateral, so components no longer need DEX liquidity on Robinhood Chain.",
     items: [
-      { title: "Synthetic boxes", body: "35+ equities become available as box components: SPY, QQQ, COIN, MSTR, semis, space and more." },
+      { title: "Synthetic boxes", body: "SEMI6, CRYPTOEQ and SPYQQQ are live. 35+ equity feeds deployed on-chain: SPY, QQQ, COIN, MSTR, semis, space and more.", done: true },
       { title: "Box type labels", body: "Every box is clearly labeled 1:1 BACKED or SYNTHETIC, with a full explainer page.", done: true },
+      { title: "24/7 minting", body: "Mint and redeem around the clock: ETH or USDG while markets are open, USDG at the official close price when they are closed. Built and tested; ships with the next box deploys." },
       { title: "Elon Box", body: "SpaceX and Tesla in one box, 50/50. Fork-tested; ships through the 24h timelock." },
       { title: "More 1:1 boxes", body: "New backed boxes as feeds and liquidity come online, deployed through the timelock." },
     ],
