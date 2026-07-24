@@ -45,7 +45,9 @@ function feedAge(updatedAt?: bigint) { if (!updatedAt) return "—"; const secon
 function friendlyError(error?: unknown) { const text = error instanceof Error ? error.message : String(error || ""); if (!text) return undefined; if (text.includes("FeedStale")) return "market closed"; if (text.includes("PerTxMintCapExceeded")) return "Mint exceeds the per-transaction ETH cap."; if (text.includes("TvlCapExceeded")) return "Mint would exceed the box TVL cap."; if (text.includes("Slippage")) return "Slippage check failed. Try a smaller size or wider tolerance."; if (text.includes("User rejected")) return "Transaction rejected in wallet."; return text.slice(0, 220); }
 
 function useBentoData(box: BoxInfo = BOXES[0]) {
-  const deployed = hasDeployAddresses();
+  // A box only counts as deployed when the engine addresses exist AND the box's own
+  // token contract exists (placeholder token = timelock execution still pending).
+  const deployed = hasDeployAddresses() && !isZeroAddress(box.token);
   const comps = box.components;
   const boxZapperConfigured = box.zapper !== PLACEHOLDER_ADDRESS;
   const { address, isConnected } = useAccount();

@@ -206,9 +206,9 @@ export const ALL_BOXES: readonly BoxInfo[] = [
   },
 ] as const;
 
-// Boxes whose contract does not exist yet (token still the placeholder address) stay
-// hidden site-wide until the timelock execution lands and the token env var is set.
-export const BOXES: readonly BoxInfo[] = ALL_BOXES.filter((b) => b.token !== PLACEHOLDER_ADDRESS);
+// All boxes are shown, including ones whose contract has not been executed through the
+// timelock yet (token = placeholder). Those render as "launching soon" with mint disabled.
+export const BOXES: readonly BoxInfo[] = ALL_BOXES;
 
 export function isSynthetic(box: BoxInfo): boolean {
   return box.kind === "synthetic";
