@@ -90,7 +90,7 @@ function synthComponent(symbol: string, name: string, weightBps: bigint): BoxCom
   return { symbol, name, token: ZERO, feed: SYNTH_FEEDS[symbol as keyof typeof SYNTH_FEEDS] as Address, weightBps, thinPoolWarning: false };
 }
 
-export const BOXES: readonly BoxInfo[] = [
+export const ALL_BOXES: readonly BoxInfo[] = [
   {
     id: 1n,
     kind: "engine",
@@ -205,6 +205,10 @@ export const BOXES: readonly BoxInfo[] = [
     ],
   },
 ] as const;
+
+// Boxes whose contract does not exist yet (token still the placeholder address) stay
+// hidden site-wide until the timelock execution lands and the token env var is set.
+export const BOXES: readonly BoxInfo[] = ALL_BOXES.filter((b) => b.token !== PLACEHOLDER_ADDRESS);
 
 export function isSynthetic(box: BoxInfo): boolean {
   return box.kind === "synthetic";
