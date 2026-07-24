@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
-import { contracts, MAG7_COMPONENTS, PLACEHOLDER_ADDRESS, robinhood } from "@/config/contracts";
+import { BOXES, contracts, MAG7_COMPONENTS, PLACEHOLDER_ADDRESS, robinhood, SYNTHETIC_BOX_ADDRESSES } from "@/config/contracts";
 
 type DocSlug =
   | "introduction"
@@ -11,6 +11,8 @@ type DocSlug =
   | "proof-of-reserves"
   | "launch-limits"
   | "mag7"
+  | "ai3"
+  | "synthetic-boxes"
   | "bento-token"
   | "architecture"
   | "admin-timelock"
@@ -73,7 +75,12 @@ const addressRows = [
   ["BoxEngine", "NEXT_PUBLIC_BOX_ENGINE_ADDRESS", contracts.boxEngine],
   ["MAG7 BoxToken", "NEXT_PUBLIC_MAG7_BOX_TOKEN_ADDRESS", contracts.mag7BoxToken],
   ["MAG7 BoxVault", "NEXT_PUBLIC_MAG7_VAULT_ADDRESS", contracts.mag7Vault],
+  ["AI3 BoxToken", "NEXT_PUBLIC_AI3_BOX_TOKEN_ADDRESS", process.env.NEXT_PUBLIC_AI3_BOX_TOKEN_ADDRESS || "0xa98AC72547c656520BD2DaD3C38F619e7EC21BB2"],
   ["UniswapV4Adapter", "NEXT_PUBLIC_V4_ADAPTER_ADDRESS", contracts.v4Adapter],
+  ["BoxFactory (synthetic)", "NEXT_PUBLIC_BOX_FACTORY_ADDRESS", SYNTHETIC_BOX_ADDRESSES.factory],
+  ["SEMI6 SyntheticBox", "NEXT_PUBLIC_SEMI6_ADDRESS", SYNTHETIC_BOX_ADDRESSES.SEMI6],
+  ["CRYPTOEQ SyntheticBox", "NEXT_PUBLIC_CRYPTOEQ_ADDRESS", SYNTHETIC_BOX_ADDRESSES.CRYPTOEQ],
+  ["SPYQQQ SyntheticBox", "NEXT_PUBLIC_SPYQQQ_ADDRESS", SYNTHETIC_BOX_ADDRESSES.SPYQQQ],
   ["BENTO (pons)", "NEXT_PUBLIC_BENTO_TOKEN_ADDRESS", contracts.bentoToken],
   ["FeeCollector", "NEXT_PUBLIC_FEE_COLLECTOR_ADDRESS", contracts.feeCollector],
 ] as const;
@@ -85,7 +92,7 @@ export const docsPages: DocPage[] = [
     title: "Introduction",
     description: "What Bento is and what the MAG7 box represents.",
     body: <>
-      <Paragraph>Bento is a Robinhood Chain protocol for on-chain stock index boxes: ERC-20 box tokens backed by underlying tokenized equities held on-chain. At mint, the intended accounting scale is <InlineCode>1 BOX = 1 USD</InlineCode> of underlying tokenized equities, while NAV floats afterward with the live value of the basket.</Paragraph>
+      <Paragraph>Bento is a Robinhood Chain protocol for on-chain stock index boxes: ERC-20 box tokens that track baskets of equities. There are two box families. <strong className="text-white">1:1 backed boxes</strong> (MAG7, AI3) hold the underlying tokenized equities on-chain; at mint the intended accounting scale is <InlineCode>1 BOX = 1 USD</InlineCode> of underlying, and NAV floats with the live value of the basket. <strong className="text-white">Synthetic boxes</strong> (SEMI6, CRYPTOEQ, SPYQQQ) hold ETH collateral and track their basket purely through Chainlink-style oracle prices; they do not hold the underlying stocks.</Paragraph>
     </>,
   },
   {
@@ -171,10 +178,36 @@ export const docsPages: DocPage[] = [
     title: "MAG7",
     description: "The first Bento box and its fixed v1 weights.",
     body: <>
-      <Paragraph>MAG7 is the first Bento box. It uses fixed weights for seven tokenized equities. Six components are weighted at <InlineCode>14.28%</InlineCode>; TSLA is <InlineCode>14.32%</InlineCode> to make the basis-point total equal <InlineCode>100%</InlineCode>.</Paragraph>
+      <Paragraph>MAG7 is the first 1:1 backed Bento box. It uses fixed weights for seven tokenized equities. Six components are weighted at <InlineCode>14.28%</InlineCode>; TSLA is <InlineCode>14.32%</InlineCode> to make the basis-point total equal <InlineCode>100%</InlineCode>.</Paragraph>
       <RowTable><thead className="bg-[#f5a623]/5 font-mono text-[11px] uppercase tracking-[0.18em] text-[#f5a623]/70"><tr><th className="px-4 py-3">Symbol</th><th className="px-4 py-3">Name</th><th className="px-4 py-3">Weight</th></tr></thead><tbody>{MAG7_COMPONENTS.map((component) => <tr key={component.symbol} className="border-t border-[#f5a623]/10"><td className="px-4 py-3 font-mono text-white">{component.symbol}</td><td className="px-4 py-3">{component.name}</td><td className="px-4 py-3 font-mono">{(Number(component.weightBps) / 100).toFixed(2)}%</td></tr>)}</tbody></RowTable>
       <H2>Rationale and rebalancing</H2>
       <Paragraph>The v1 box uses an equal-weight design so each component receives a similar target allocation at mint. There is no automatic rebalancing policy in v1; weights are fixed at mint and NAV floats with the held assets.</Paragraph>
+    </>,
+  },
+  {
+    slug: "ai3",
+    group: "BOXES",
+    title: "AI3",
+    description: "Three-name AI hardware box: NVDA, AMD, MU.",
+    body: <>
+      <Paragraph>AI3 is the second 1:1 backed Bento box. It holds three tokenized AI hardware equities at roughly equal weight: NVDA <InlineCode>33.33%</InlineCode>, AMD <InlineCode>33.33%</InlineCode>, MU <InlineCode>33.34%</InlineCode>. Like MAG7, the underlying tokenized stocks are held in a dedicated BoxVault, and mint, redeem, and claims work through the same BoxEngine paths.</Paragraph>
+      <Paragraph>AI3 launches with the same conservative limits as MAG7: a per-transaction mint cap and a box TVL cap, both adjustable only through the 24h timelock.</Paragraph>
+    </>,
+  },
+  {
+    slug: "synthetic-boxes",
+    group: "BOXES",
+    title: "Synthetic boxes",
+    description: "ETH-collateralized, oracle-priced baskets: SEMI6, CRYPTOEQ, SPYQQQ.",
+    body: <>
+      <Paragraph>Synthetic boxes track a basket of equities without holding the underlying stocks. Each box is a standalone <InlineCode>SyntheticBox</InlineCode> vault: the vault itself is the ERC-20 share token, deposits are plain ETH, and share pricing comes from Chainlink-style stock/USD feeds plus the ETH/USD feed. Because synthetics only need a price feed, not DEX liquidity, they can cover a much wider menu of names than 1:1 boxes.</Paragraph>
+      <RowTable><thead className="bg-[#f5a623]/5 font-mono text-[11px] uppercase tracking-[0.18em] text-[#f5a623]/70"><tr><th className="px-4 py-3">Box</th><th className="px-4 py-3">Components</th></tr></thead><tbody>{BOXES.filter((b) => b.kind === "synthetic").map((b) => <tr key={b.symbol} className="border-t border-[#f5a623]/10"><td className="px-4 py-3 font-mono text-white">{b.symbol}</td><td className="px-4 py-3">{b.componentSummary}</td></tr>)}</tbody></RowTable>
+      <H2>What you own</H2>
+      <Paragraph>A synthetic box share is a claim on the ETH held by its vault, valued at the basket's oracle price. Shares redeem for ETH at NAV, capped by the vault's actual ETH balance. You are not entitled to the underlying stocks, and extreme ETH price moves against the basket can leave the vault with less ETH than the tracked value implies.</Paragraph>
+      <H2>Fees</H2>
+      <Paragraph>Synthetic boxes charge mint and redeem fees in ETH (30 bps each at launch, hard-capped at 2% in code, adjustable only through the timelock). Protocol fees feed the same BENTO buyback-and-burn path as the 1:1 boxes.</Paragraph>
+      <H2>Interface labeling</H2>
+      <Paragraph>The app labels every box as <InlineCode>1:1 BACKED</InlineCode> or <InlineCode>SYNTHETIC</InlineCode> so it is always clear which trust model applies. The Reserves page only shows stock reserves for backed boxes; synthetic boxes show their ETH collateral instead.</Paragraph>
     </>,
   },
   {
@@ -202,6 +235,8 @@ export const docsPages: DocPage[] = [
         ["FeeCollector", "Receives protocol fees and executes BENTO buyback-and-burn operations."],
         ["BoxRegistry", "Maps box identifiers to engine versions for discovery and versioning."],
         ["UniswapV4Adapter", "Adapter used for configured Uniswap V4 stock routes."],
+        ["SyntheticBox", "Standalone ETH-collateralized vault that is itself the ERC-20 share token for one synthetic box."],
+        ["BoxFactory", "Deploys synthetic boxes; owned by the timelock."],
       ].map(([name, role]) => <tr key={name} className="border-t border-[#f5a623]/10"><td className="px-4 py-3 font-mono text-white">{name}</td><td className="px-4 py-3">{role}</td></tr>)}</tbody></RowTable>
     </>,
   },
@@ -264,7 +299,7 @@ export const docsPages: DocPage[] = [
       <List>
         <li><ExternalAnchor href={repo}>Contracts GitHub repository</ExternalAnchor></li>
         <li><ExternalAnchor href={webRepo}>Frontend GitHub repository</ExternalAnchor></li>
-        <li><span className="text-white">X:</span> official account is not configured in this repository yet.</li>
+        <li><span className="text-white">X:</span> <ExternalAnchor href="https://x.com/BentoEtf">@BentoEtf</ExternalAnchor></li>
       </List>
     </>,
   },
