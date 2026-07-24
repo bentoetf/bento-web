@@ -187,6 +187,23 @@ export const BOXES: readonly BoxInfo[] = [
       synthComponent("QQQ", "Nasdaq 100", 5000n),
     ],
   },
+  {
+    id: (process.env.NEXT_PUBLIC_ELON_BOX_ID ? BigInt(process.env.NEXT_PUBLIC_ELON_BOX_ID) : 3n),
+    kind: "engine",
+    name: "Elon Bento Box",
+    symbol: "ELON",
+    description: "SpaceX and Tesla in one box, 50/50, fully backed by vault reserves. Ships through the 24h timelock.",
+    token: (process.env.NEXT_PUBLIC_ELON_BOX_TOKEN_ADDRESS || PLACEHOLDER_ADDRESS) as Address,
+    zapper: (process.env.NEXT_PUBLIC_USDG_ZAPPER_ADDRESS || "0x720a5FE26B63498B4b9fD3659167FF001c8BA633") as Address,
+    art: "/boxes/elon-512.png",
+    thumb: "/boxes/elon-128.png",
+    componentSummary: "SPCX \u00b7 TSLA",
+    boxType: "backed",
+    components: [
+      { symbol: "SPCX", name: "SpaceX", token: "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa" as Address, feed: "0xB265810950ba6c5C0Ff821c9963014a56fD8Bffb" as Address, weightBps: 5000n, thinPoolWarning: false },
+      { symbol: "TSLA", name: "Tesla", token: "0x322F0929c4625eD5bAd873c95208D54E1c003b2d" as Address, feed: "0x4A1166a659A55625345e9515b32adECea5547C38" as Address, weightBps: 5000n, thinPoolWarning: false },
+    ],
+  },
 ] as const;
 
 export function isSynthetic(box: BoxInfo): boolean {
