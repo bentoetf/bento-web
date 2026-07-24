@@ -9,13 +9,16 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@tanstack/react-query": "^5.101.2",
     "lucide-react": "^1.25.0",
+    "mcp-handler": "^1.1.0",
     "next": "16.2.10",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "viem": "^2.55.4",
-    "wagmi": "^3.7.3"
+    "wagmi": "^3.7.3",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
