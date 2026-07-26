@@ -85,6 +85,14 @@ const SYNTH_FEEDS = {
   QQQ: "0x80901d846d5D7B030F26B480776EE3b29374C2ae",
 } as const;
 
+// Meme USD TWAP adapters (v3 TWAP x ETH/USD, 8 decimals, 24/7). Thin pools, softer
+// oracle than the equity feeds, flagged with thinPoolWarning.
+const MEME_FEEDS = {
+  CASHCAT: "0xdfE6bA7641a4f536a303c46cfEFD673aF75ca286",
+  PONS: "0x33ab56F507dcda241F07ad7F0cf89611af32F35d",
+  TENDIES: "0xf2d89A553E6EEc797cF2DdE5Eb0Bec1A3897a8bf",
+} as const;
+
 const ZERO = "0x0000000000000000000000000000000000000000" as Address;
 function synthComponent(symbol: string, name: string, weightBps: bigint): BoxComponent {
   return { symbol, name, token: ZERO, feed: SYNTH_FEEDS[symbol as keyof typeof SYNTH_FEEDS] as Address, weightBps, thinPoolWarning: false };
@@ -202,6 +210,24 @@ export const ALL_BOXES: readonly BoxInfo[] = [
     components: [
       { symbol: "SPCX", name: "SpaceX", token: "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa" as Address, feed: "0xB265810950ba6c5C0Ff821c9963014a56fD8Bffb" as Address, weightBps: 5000n, thinPoolWarning: false },
       { symbol: "TSLA", name: "Tesla", token: "0x322F0929c4625eD5bAd873c95208D54E1c003b2d" as Address, feed: "0x4A1166a659A55625345e9515b32adECea5547C38" as Address, weightBps: 5000n, thinPoolWarning: false },
+    ],
+  },
+  {
+    id: (process.env.NEXT_PUBLIC_MEMES_BOX_ID ? BigInt(process.env.NEXT_PUBLIC_MEMES_BOX_ID) : 6n),
+    kind: "synthetic",
+    name: "Meme Bento Box",
+    symbol: "MEMES",
+    description: "Equal-weight basket of Robinhood Chain memecoins, priced by on-chain TWAP USD feeds. Trades 24/7.",
+    token: (process.env.NEXT_PUBLIC_MEMES_BOX_ADDRESS || PLACEHOLDER_ADDRESS) as Address,
+    zapper: PLACEHOLDER_ADDRESS,
+    art: "/boxes/memes-512.png",
+    thumb: "/boxes/memes-128.png",
+    componentSummary: "CASHCAT \u00b7 PONS \u00b7 TENDIES",
+    boxType: "synthetic",
+    components: [
+      { symbol: "CASHCAT", name: "Cash Cat", token: ZERO, feed: MEME_FEEDS.CASHCAT as Address, weightBps: 3333n, thinPoolWarning: true },
+      { symbol: "PONS", name: "Pons", token: ZERO, feed: MEME_FEEDS.PONS as Address, weightBps: 3333n, thinPoolWarning: true },
+      { symbol: "TENDIES", name: "Tendies", token: ZERO, feed: MEME_FEEDS.TENDIES as Address, weightBps: 3334n, thinPoolWarning: true },
     ],
   },
 ] as const;
