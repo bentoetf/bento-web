@@ -20,6 +20,7 @@ const explorerBase = robinhood.blockExplorers.default.url;
 const SOON = "launching soon";
 const navItems = [
   { href: "/", label: "Boxes" },
+  { href: "https://pad.bentoetf.com", label: "Launchpad" },
   { href: "/mint", label: "Mint" },
   { href: "/redeem", label: "Redeem" },
   { href: "/portfolio", label: "Portfolio" },
