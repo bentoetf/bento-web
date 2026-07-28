@@ -407,13 +407,13 @@ const ROADMAP_PHASES: RoadmapPhase[] = [
     ],
   },
   {
-    phase: "Phase 3", title: "BentoPad", status: "in testing",
-    blurb: "Permissionless box creation. Anyone builds a basket, launches it with its own coin, and earns from it.",
+    phase: "Phase 3", title: "BentoPad", status: "live",
+    blurb: "Permissionless box creation, live at pad.bentoetf.com. Anyone builds a basket, launches it with its own coin, and earns from it.",
     items: [
-      { title: "Create your own box", body: "Pick components and weights from every supported feed, deploy a synthetic box in one transaction." },
-      { title: "Creator coins", body: "Each box launches with its own tradable coin through the Pons launcher, LP locked permanently." },
-      { title: "Creator fee share", body: "Trading fees split between the protocol and box creators. Token-side fees burn automatically." },
-      { title: "Box registry", body: "Every BentoPad box is on-chain, discoverable, and labeled by type." },
+      { title: "Create your own box", body: "Pick components and weights from every supported feed, deploy a synthetic box in one transaction.", done: true },
+      { title: "Creator coins", body: "Each box launches with its own tradable coin through the Pons launcher, LP locked permanently.", done: true },
+      { title: "Creator fee share", body: "Trading fees split 80/20 between box creators' coin holders and the protocol, dripped as box shares. Token-side fees burn automatically.", done: true },
+      { title: "Box registry", body: "Every BentoPad box is on-chain, discoverable, and labeled by type.", done: true },
     ],
   },
   {
