@@ -669,7 +669,7 @@ export function BentoPage() {
   const feeCollectorBalance = useBalance({ address: contracts.feeCollector, chainId: robinhood.id, query: { enabled: !isZeroAddress(contracts.feeCollector), staleTime: 0 } });
   const bentoSupply = data.bentoSupplyRead.data as bigint | undefined;
   const deadBalance = data.bentoDeadRead.data as bigint | undefined;
-  const burned = (() => { if (!data.bentoConfigured || bentoSupply === undefined) return data.bentoConfigured ? "—" : SOON; const initial = 1_000_000_000n * 10n ** 18n; const supplyBurn = bentoSupply < initial ? initial - bentoSupply : 0n; return `${formatBig(supplyBurn + (deadBalance ?? 0n), 18, 2)} BENTO`; })();
+  const burned = (() => { if (!data.bentoConfigured || bentoSupply === undefined) return data.bentoConfigured ? "—" : SOON; const initial = 1_000_000_000n * 10n ** 18n; const supplyBurn = bentoSupply < initial ? initial - bentoSupply : 0n; const total = supplyBurn + (deadBalance ?? 0n); const pct = Number((total * 10_000n) / initial) / 100; return `${formatBig(total, 18, 2)} BENTO (${pct.toFixed(2)}%)`; })();
   const feesCollected = data.bentoConfigured && feeCollectorBalance.data ? `${formatBig(feeCollectorBalance.data.value, 18, 5)} ETH` : data.bentoConfigured ? "—" : SOON;
 
   return (
