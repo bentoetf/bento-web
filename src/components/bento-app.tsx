@@ -21,6 +21,7 @@ const SOON = "launching soon";
 const navItems = [
   { href: "/", label: "Boxes" },
   { href: "https://pad.bentoetf.com", label: "Launchpad" },
+  { href: "/create", label: "Create" },
   { href: "/mint", label: "Mint" },
   { href: "/redeem", label: "Redeem" },
   { href: "/portfolio", label: "Portfolio" },
