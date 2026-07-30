@@ -24,9 +24,12 @@ export async function GET() {
     let bentoBurned: string | null = null;
     if (hasBentoAddresses()) {
       try {
-        const bentoSupply = (await client.readContract({ address: contracts.bentoToken, abi: erc20Abi, functionName: "totalSupply" })) as bigint;
-        const burned = bentoSupply < BENTO_INITIAL_SUPPLY ? BENTO_INITIAL_SUPPLY - bentoSupply : 0n;
-        bentoBurned = formatUnits(burned, 18);
+        const [bentoSupply, deadBalance] = (await Promise.all([
+          client.readContract({ address: contracts.bentoToken, abi: erc20Abi, functionName: "totalSupply" }),
+          client.readContract({ address: contracts.bentoToken, abi: erc20Abi, functionName: "balanceOf", args: ["0x000000000000000000000000000000000000dEaD"] }),
+        ])) as [bigint, bigint];
+        const supplyBurn = bentoSupply < BENTO_INITIAL_SUPPLY ? BENTO_INITIAL_SUPPLY - bentoSupply : 0n;
+        bentoBurned = formatUnits(supplyBurn + deadBalance, 18);
       } catch {
         bentoBurned = null;
       }

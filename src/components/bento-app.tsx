@@ -33,6 +33,7 @@ const navItems = [
 
 function short(addr?: string) { return addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : "—"; }
 function isZeroAddress(addr: Address) { return addr.toLowerCase() === PLACEHOLDER_ADDRESS; }
+const DEAD_ADDRESS = "0x000000000000000000000000000000000000dEaD" as Address;
 function explorerAddress(addr: Address) { return `${explorerBase}/address/${addr}`; }
 function parseSafeEther(value: string) { try { return parseEther(value || "0"); } catch { return 0n; } }
 function resolveRecipient(input: string, fallback: Address): Address { const trimmed = input.trim(); if (!trimmed) return fallback; if (!/^0x[0-9a-fA-F]{40}$/.test(trimmed)) throw new Error("Gift recipient must be a valid 0x address."); return trimmed as Address; }
@@ -78,6 +79,7 @@ function useBentoData(box: BoxInfo = BOXES[0]) {
   const ethFeedReads = useReadContracts({ contracts: [{ address: ETH_USD_FEED, abi: feedAbi, functionName: "latestRoundData" }, { address: ETH_USD_FEED, abi: feedAbi, functionName: "decimals" }], query: { enabled: deployed, staleTime: 0 } });
   const bentoSupplyRead = useReadContract({ address: contracts.bentoToken, abi: erc20Abi, functionName: "totalSupply", query: { enabled: hasBentoAddresses(), staleTime: 0 } });
   const bentoBalanceRead = useReadContract({ address: contracts.bentoToken, abi: erc20Abi, functionName: "balanceOf", args: address ? [address] : undefined, query: { enabled: hasBentoAddresses() && !!address, staleTime: 0 } });
+  const bentoDeadRead = useReadContract({ address: contracts.bentoToken, abi: erc20Abi, functionName: "balanceOf", args: [DEAD_ADDRESS], query: { enabled: hasBentoAddresses(), staleTime: 0 } });
 
   const boxData = boxRead.data as BoxData | undefined;
   const backingData = backingRead.data as BackingData | undefined;
@@ -199,7 +201,7 @@ function useBentoData(box: BoxInfo = BOXES[0]) {
 
   async function claim(token: Address) { try { if (!address) throw new Error("Connect wallet first."); const hash = await writeContractAsync({ address: contracts.boxEngine, abi: boxEngineAbi, functionName: "claimPending", args: [boxId, token, address], chainId: robinhood.id }); setTxMessage(`Claim sent: ${hash}`); } catch (error) { setTxMessage(friendlyError(error)); } }
 
-  return { box, comps, address, isConnected, deployed, bentoConfigured: hasBentoAddresses(), zapperConfigured: hasZapperAddress() && boxZapperConfigured, boxId, navRead, boxRead, capRead, backingRead, boxBalanceRead, stockBalanceReads, ethBalanceRead, ethFeedReads, bentoSupplyRead, bentoBalanceRead, totalSupplyRead, feedReads, claimsReads, boxData, backingData, tvlUsd, mintFeeBps, redeemFeeBps, tvlCap, perTxCap, feedInfo, ethIn, setEthIn, usdgIn, setUsdgIn, payAsset, setPayAsset, giftRecipient, setGiftRecipient, slippage, setSlippage, redeemAmount, setRedeemAmount, mintQuote, redeemQuote, txMessage, writePending, quoteMint, quoteRedeem, submitMint, submitMintUSDG, redeemForEth, redeemForStocks, claim };
+  return { box, comps, address, isConnected, deployed, bentoConfigured: hasBentoAddresses(), zapperConfigured: hasZapperAddress() && boxZapperConfigured, boxId, navRead, boxRead, capRead, backingRead, boxBalanceRead, stockBalanceReads, ethBalanceRead, ethFeedReads, bentoSupplyRead, bentoBalanceRead, bentoDeadRead, totalSupplyRead, feedReads, claimsReads, boxData, backingData, tvlUsd, mintFeeBps, redeemFeeBps, tvlCap, perTxCap, feedInfo, ethIn, setEthIn, usdgIn, setUsdgIn, payAsset, setPayAsset, giftRecipient, setGiftRecipient, slippage, setSlippage, redeemAmount, setRedeemAmount, mintQuote, redeemQuote, txMessage, writePending, quoteMint, quoteRedeem, submitMint, submitMintUSDG, redeemForEth, redeemForStocks, claim };
 }
 
 function BentoLogo() {
@@ -375,7 +377,7 @@ function OverviewPageInner() {
   const navValue = liveNav ? formatUsd1e18(heroNav) : "$—.————";
   const moveValue = liveNav ? formatChangePercent(heroChange) : "$—.————";
   const tvlValue = liveNav ? formatUsd1e18(synthetic ? synthTvl : data.tvlUsd) : "—";
-  const bentoBurned = (() => { const supply = data.bentoSupplyRead.data as bigint | undefined; if (!data.bentoConfigured || supply === undefined) return undefined; const initial = 1_000_000_000n * 10n ** 18n; return supply < initial ? initial - supply : 0n; })();
+  const bentoBurned = (() => { const supply = data.bentoSupplyRead.data as bigint | undefined; if (!data.bentoConfigured || supply === undefined) return undefined; const initial = 1_000_000_000n * 10n ** 18n; const supplyBurn = supply < initial ? initial - supply : 0n; return supplyBurn + ((data.bentoDeadRead.data as bigint | undefined) ?? 0n); })();
   return <><section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem]"><Panel className="min-h-[33rem] p-7 sm:p-8"><div className="grid h-full gap-8 xl:grid-cols-[17rem_minmax(0,1fr)_minmax(19rem,0.95fr)]"><div className="flex items-start justify-center xl:justify-start"><BoxArt box={selectedBox} /></div><div className="flex flex-col justify-center"><SectionLabel>Featured box</SectionLabel><h1 className="mt-4 text-4xl font-semibold tracking-tight text-white sm:text-6xl">{selectedBox.name}</h1><p className="mt-4 max-w-md text-base leading-7 text-zinc-400">{selectedBox.description}</p><div className="mt-5"><BoxSelector selected={selectedBox} onSelect={selectBox} /></div><div className="mt-6">{synthetic ? <SyntheticProofBadge /> : <ProofBadge />}</div></div><div className="flex flex-col justify-center"><SectionLabel>NAV (on-chain)</SectionLabel><div className="mt-3"><Value large dim={!liveNav}>{navValue}</Value></div>{!liveNav ? <p className="mt-2 text-sm text-zinc-500">launching soon</p> : null}<p className="mt-2 font-mono text-sm text-zinc-500">24h change: {moveValue}</p><div className="mt-5"><NavSparkline series={heroSeries} change={heroChange} /></div><div className="mt-5 flex gap-3"><Link href={`/mint?box=${selectedBox.symbol}`} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#f5a623] px-6 py-3 text-sm font-semibold text-black hover:brightness-110"><ArrowUpRight className="h-4 w-4" />Mint</Link><Link href={`/redeem?box=${selectedBox.symbol}`} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#f5a623]/45 px-6 py-3 text-sm font-semibold text-[#f5a623] hover:bg-[#f5a623]/10"><ArrowDownRight className="h-4 w-4" />Redeem</Link></div></div></div></Panel><aside className="grid gap-4"><StatCard label={`${selectedBox.symbol} TVL`} value={tvlValue} caption={liveNav ? (synthetic ? "ETH collateral in vault" : "on-chain backing") : "launching soon"} dim={!liveNav} /><StatCard label="BENTO burned" value={bentoBurned !== undefined ? `${formatBig(bentoBurned, 18, 2)} BENTO` : "—"} caption={bentoBurned !== undefined ? "every mint burns BENTO" : "launching soon"} dim={bentoBurned === undefined} /><StatCard label="Fees collected" value={overviewFees ?? "—"} caption={overviewFees !== undefined ? "ETH awaiting buyback" : "launching soon"} dim={overviewFees === undefined} /></aside></section><section><SectionLabel>Index boxes</SectionLabel><div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{BOXES.map((box) => <BoxCard key={box.symbol} box={box} deployed={data.deployed} selected={selectedBox.symbol === box.symbol} onSelect={() => selectBox(box)} />)}<Panel className="flex min-h-[18rem] items-center justify-center border-dashed"><div className="text-center"><SectionLabel>More boxes soon</SectionLabel><p className="mt-3 text-sm text-zinc-500">New boxes appear here only after real contracts, feeds, and reserves exist.</p></div></Panel></div></section><RoadmapSection /></>;
 }
 
@@ -666,7 +668,8 @@ export function BentoPage() {
   const data = useBentoData();
   const feeCollectorBalance = useBalance({ address: contracts.feeCollector, chainId: robinhood.id, query: { enabled: !isZeroAddress(contracts.feeCollector), staleTime: 0 } });
   const bentoSupply = data.bentoSupplyRead.data as bigint | undefined;
-  const burned = (() => { if (!data.bentoConfigured || bentoSupply === undefined) return data.bentoConfigured ? "—" : SOON; const initial = 1_000_000_000n * 10n ** 18n; return `${formatBig(bentoSupply < initial ? initial - bentoSupply : 0n, 18, 2)} BENTO`; })();
+  const deadBalance = data.bentoDeadRead.data as bigint | undefined;
+  const burned = (() => { if (!data.bentoConfigured || bentoSupply === undefined) return data.bentoConfigured ? "—" : SOON; const initial = 1_000_000_000n * 10n ** 18n; const supplyBurn = bentoSupply < initial ? initial - bentoSupply : 0n; return `${formatBig(supplyBurn + (deadBalance ?? 0n), 18, 2)} BENTO`; })();
   const feesCollected = data.bentoConfigured && feeCollectorBalance.data ? `${formatBig(feeCollectorBalance.data.value, 18, 5)} ETH` : data.bentoConfigured ? "—" : SOON;
 
   return (
@@ -677,7 +680,7 @@ export function BentoPage() {
         <p className="mt-3 max-w-3xl text-sm leading-7 text-zinc-400">BENTO is the protocol token, launched on pons.family with a fixed 1B supply and a locked trading pool. Box fees fund a buyback-and-burn loop. No pool price section is shown until live data exists.</p>
         <div className="mt-6 grid gap-4 md:grid-cols-3">
           <StatCard label="Total supply" value={data.bentoConfigured ? `${formatBig(data.bentoSupplyRead.data as bigint | undefined, 18, 2)} BENTO` : SOON} emptyChart={false} dim={!data.bentoConfigured} />
-          <StatCard label="Cumulative burned" value={burned} caption={data.bentoConfigured ? "1B initial supply minus current supply" : "launching soon"} emptyChart={false} dim={!data.bentoConfigured} />
+          <StatCard label="Cumulative burned" value={burned} caption={data.bentoConfigured ? "supply reduction + dead address balance" : "launching soon"} emptyChart={false} dim={!data.bentoConfigured} />
           <StatCard label="Fees awaiting buyback" value={feesCollected} caption={data.bentoConfigured ? "ETH held by FeeCollector" : "launching soon"} emptyChart={false} dim={!data.bentoConfigured} />
         </div>
         <div className="mt-6 rounded-2xl border border-[#f5a623]/10 bg-black/25 p-4">
